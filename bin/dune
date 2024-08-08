@@ -1,0 +1,6 @@
+(executable
+ (public_name hello)
+ (name main)
+ (modes byte exe)
+ (modules day1 day2 utils main)
+ (libraries hello))
