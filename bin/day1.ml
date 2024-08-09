@@ -38,5 +38,6 @@ let calib_value v =
   in
   aux ' ' ' ' 0
 
-let all_calib_values inputs =
-  List.fold_left (fun acc v -> acc + calib_value' v) 0 inputs
+let day1_inputs = Utils.read_lines "data/advent_1_data.txt"
+let execute_day_1 = List.fold_left (fun acc v -> acc + calib_value v) 0 day1_inputs
+let execute_day_1' = List.fold_left (fun acc v -> acc + calib_value' v) 0 day1_inputs
