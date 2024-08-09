@@ -9,21 +9,11 @@
 let day2_inputs = Utils.read_lines "data/advent_2_data.txt"
 let test_line = List.nth day2_inputs 0
 
-(* not really needed but wanted to check out variants *)
-type cube_color = Red | Green | Blue
-
-let string_of_color = function
-  | Red -> "red"
-  | Green -> "green"
-  | Blue -> "blue"
-
-let color_of_string = function
-  | "red" -> Red
-  | "green" -> Green
-  | "blue" -> Blue
+let first_bag_content = function
+  | "red" -> 12
+  | "green" -> 13
+  | "blue" -> 14
   | _ -> failwith "Invalid color"
-
-let first_bag_content = function Red -> 12 | Green -> 13 | Blue -> 14
 
 (*Check if a game segment. a single segment is for example 1 red, 5 blue*)
 let is_subgame_invalid game =
@@ -32,7 +22,7 @@ let is_subgame_invalid game =
   let cube_count_invalid game_cubes =
     let cube = String.trim game_cubes |> String.split_on_char ' ' in
     let count = List.hd cube |> int_of_string in
-    let color = List.nth cube 1 |> color_of_string in
+    let color = List.nth cube 1 in
     (* Printf.printf "Cube Count: %d\n" count; *)
     (* Printf.printf "Cube Color: %s\n" (string_of_color color); *)
     first_bag_content color < count
@@ -53,8 +43,52 @@ let process_game game =
   (* Printf.printf "Game is invalid: %b\n" invalid; *)
   if invalid then 0 else game_id
 
+type subgame = { red : int; green : int; blue : int }
+
+let subgame_of_string s =
+  (* Printf.printf "Subgame: %s\n" s; *)
+  let split = String.split_on_char ',' s in
+  let tuple_of_cube game_cubes =
+    let cube = String.trim game_cubes |> String.split_on_char ' ' in
+    let count = List.hd cube |> int_of_string in
+    let color = List.nth cube 1 in
+    (color, count)
+  in
+  let sg = List.fold_left
+    (fun acc s ->
+      let (color, count) = tuple_of_cube s in
+      match color with
+      | "red" -> { acc with red = count }
+      | "green" -> { acc with green = count }
+      | "blue" -> { acc with blue = count }
+      | _ -> failwith "Invalid color")
+    { red = 0; green = 0; blue = 0 }
+    split
+  in
+  sg
+
+let process_game' game =
+  let split = String.split_on_char ':' game in
+  let game_content = List.tl split |> List.hd |> String.split_on_char ';' in
+  let max_bag =
+    List.fold_left
+      (fun acc s ->
+        let sg = subgame_of_string s in
+        {
+          red = Int.max sg.red acc.red;
+          green = Int.max sg.green acc.green;
+          blue = Int.max sg.blue acc.blue;
+        })
+      { red = 0; green = 0; blue = 0 }
+      game_content
+  in
+  max_bag.red * max_bag.green * max_bag.blue
+
 let execute_day_2 =
   List.fold_left (fun acc x -> acc + process_game x) 0 day2_inputs
 
-let parse_test = process_game test_line
+
+let execute_day_2' =
+  List.fold_left (fun acc x -> acc + process_game' x) 0 day2_inputs
+let parse_test = process_game' test_line
 let () = Printf.printf "\nTest Result: %d\n" parse_test
