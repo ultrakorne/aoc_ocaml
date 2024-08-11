@@ -2,5 +2,5 @@
  (public_name hello)
  (name main)
  (modes byte exe)
- (modules day1 day2 utils main)
+ (modules day1 day2 day3 utils main)
  (libraries hello))
