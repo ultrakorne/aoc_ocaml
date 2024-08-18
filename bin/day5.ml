@@ -3,7 +3,6 @@ let main = Printexc.record_backtrace true
 
 type map_entry = { dest : int; source : int; length : int }
 type single_map = { mappings : map_entry list }
-(* type mappings = { map : single_map list }  *)
 
 let parse_input input =
   let seeds =
@@ -19,7 +18,6 @@ let parse_input input =
         (*stop on empty line, returning the rest of the lines*)
         if String.trim x = "" then (acc, xs)
         else
-          let () = Printf.printf "\n parsing map entry %s" x in
           let split = String.split_on_char ' ' x in
           let dest = List.hd split |> int_of_string in
           let source = List.nth split 1 |> int_of_string in
@@ -32,7 +30,6 @@ let parse_input input =
     match map with
     | [] -> []
     | x :: xs ->
-        let () = Printf.printf "\n parsing map %s" x in
         (*skipping lines that are empty and with :, since they indicate a beginning of a map*)
         if String.contains x ':' || String.trim x = "" then parse_all_maps xs
         else
@@ -45,9 +42,9 @@ let parse_input input =
   (seeds, result)
 
 let seeds, all_maps = parse_input day5_inputs
-let () = List.iter (Printf.printf "\n seed num %d") seeds
-let () = Printf.printf "\n num maps %d" (List.length all_maps)
-let () = List.iter (Printf.printf "\n dest first map %d") (List.map (fun x -> x.dest) (List.nth all_maps 1).mappings)
+let seeds_idx = List.mapi (fun i x -> (i, x)) seeds
+let seeds' = List.filter (fun (i, _) -> i mod 2 = 0) seeds_idx |> List.map (fun (_, x) -> x)
+let ranges = List.filter (fun (i, _) -> i mod 2 <> 0) seeds_idx |> List.map (fun (_, x) -> x)
 
 let apply_map value map =
   List.find_opt (fun x -> value >= x.source && value < x.source + x.length) map
@@ -56,15 +53,31 @@ let apply_map value map =
 let map_seed seed maps =
   List.fold_left
     (fun acc map ->
-      let () = Printf.printf "\n applying map to num %d" acc in
       let value = apply_map acc map.mappings in
       match value with Some x -> x | None -> acc)
     seed maps
 
-let execute =
-  let min_location = List.map (fun x -> map_seed x all_maps) seeds |> List.fold_left (fun acc x -> if x < acc then x else acc) Int.max_int in
+(* compute the min mapping a range of values *)
+let map_seed_range seed range maps =
+  let rec aux i min_value =
+    if i >= seed + range then min_value
+    else
+      let mapped_val = map_seed i maps in
+      let new_min = if mapped_val < min_value then mapped_val else min_value in
+      aux (i + 1) new_min
+  in
+  aux seed Int.max_int
 
-  let seed_loc = map_seed 79 all_maps in
-  let () = Printf.printf "\n seed loc %d" seed_loc in
-  let () = Printf.printf "\n min location %d" min_location in
+let execute () =
+  let min_location =
+    List.map (fun x -> map_seed x all_maps) seeds
+    |> List.fold_left (fun acc x -> if x < acc then x else acc) Int.max_int
+  in
+  min_location
+
+let execute' () =
+  let min_location =
+    List.map2 (fun x r -> map_seed_range x r all_maps) seeds' ranges
+    |> List.fold_left (fun acc x -> if x < acc then x else acc) Int.max_int
+  in
   min_location
