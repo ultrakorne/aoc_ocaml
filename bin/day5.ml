@@ -58,7 +58,7 @@ let map_seed seed maps =
     seed maps
 
 (* compute the min mapping a range of values *)
-let map_seed_range seed range maps =
+let min_of_map_seed_range seed range maps =
   let rec aux i min_value =
     if i >= seed + range then min_value
     else
@@ -69,15 +69,8 @@ let map_seed_range seed range maps =
   aux seed Int.max_int
 
 let execute () =
-  let min_location =
-    List.map (fun x -> map_seed x all_maps) seeds
-    |> List.fold_left (fun acc x -> if x < acc then x else acc) Int.max_int
-  in
-  min_location
+  List.map (fun x -> map_seed x all_maps) seeds |> List.fold_left (fun acc x -> if x < acc then x else acc) Int.max_int
 
 let execute' () =
-  let min_location =
-    List.map2 (fun x r -> map_seed_range x r all_maps) seeds' ranges
-    |> List.fold_left (fun acc x -> if x < acc then x else acc) Int.max_int
-  in
-  min_location
+  List.map2 (fun x r -> min_of_map_seed_range x r all_maps) seeds' ranges
+  |> List.fold_left (fun acc x -> if x < acc then x else acc) Int.max_int
