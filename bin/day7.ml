@@ -2,9 +2,8 @@ let day7_inputs = Utils.read_lines "data/advent_7_data.txt"
 let main = Printexc.record_backtrace true
 
 type hand = { cards : string; bet : int }
-type hand_type = FiveKind | FourKind | House | Tris | TwoPair | Pair | HighCard
-
-let hand_type_of_int x =
+(* type hand_type = FiveKind | FourKind | House | Tris | TwoPair | Pair | HighCard *)
+(* let hand_type_of_int x =
   match x with
   | 25 -> FiveKind
   | 17 -> FourKind
@@ -13,7 +12,7 @@ let hand_type_of_int x =
   | 9 -> TwoPair
   | 7 -> Pair
   | 5 -> HighCard
-  | _ -> failwith "Invalid hand type integer"
+  | _ -> failwith "Invalid hand type integer" *)
 
 let int_of_card c =
   match c with
@@ -33,11 +32,12 @@ let parse_hand line =
   { cards = List.hd split; bet }
 
 let hands = List.map (fun x -> parse_hand x) day7_inputs
+
 let count_char_in c str = String.to_seq str |> Seq.fold_left (fun acc x -> if x = c then acc + 1 else acc) 0
 
 (* Jokers will be 0 *)
 let count_char_in' c str =
-  if c = 'J' then 0 else String.to_seq str |> Seq.fold_left (fun acc x -> if x = c then acc + 1 else acc) 0
+  if c = 'J' then 0 else count_char_in c str
 
 let apply_jokers seq =
   let rec aux s =
@@ -81,19 +81,12 @@ let ordering_func int_of_card_func count_char_func h1 h2 =
 
 let ordering h1 h2 = ordering_func int_of_card count_char_in h1 h2
 let ordering' h1 h2 = ordering_func int_of_card' count_char_in' h1 h2
-let compare = ordering { cards = "TJ3A4"; bet = 0 } { cards = "TJA63"; bet = 0 }
-let () = Printf.printf " compare %d " compare
+
+let rec compute_winnings acc rank hands =
+  match hands with [] -> acc | h :: rest -> compute_winnings (acc + (h.bet * rank)) (rank + 1) rest
 
 let execute () =
-  let ordered_hands = List.sort ordering hands in
-  let rec compute_winnings acc rank hands =
-    match hands with [] -> acc | h :: rest -> compute_winnings (acc + (h.bet * rank)) (rank + 1) rest
-  in
-  compute_winnings 0 1 ordered_hands
+  List.sort ordering hands |> compute_winnings 0 1 
 
 let execute' () =
-  let ordered_hands = List.sort ordering' hands in
-  let rec compute_winnings acc rank hands =
-    match hands with [] -> acc | h :: rest -> compute_winnings (acc + (h.bet * rank)) (rank + 1) rest
-  in
-  compute_winnings 0 1 ordered_hands
+  List.sort ordering' hands |> compute_winnings 0 1 
