@@ -17,4 +17,6 @@ let () = Printf.printf "\nResult Day 8 *  : %d" ( Day8.execute () )
 let () = Printf.printf "\nResult Day 8 ** : %d" ( Day8.execute' () )
 let () = Printf.printf "\nResult Day 9 *  : %d" ( Day9.execute () )
 let () = Printf.printf "\nResult Day 9 ** : %d" ( Day9.execute' () )
+let () = Printf.printf "\nResult Day 10 *  : %d" ( Day10.execute () )
+let () = Printf.printf "\nResult Day 10 ** : %d" ( Day10.execute' () )
 let () = Printf.printf "\n---"
