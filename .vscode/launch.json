@@ -4,12 +4,16 @@
     // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
-
         {
             "name": "OCaml earlybird (experimental)",
             "type": "ocaml.earlybird",
             "request": "launch",
-            "program": "${command:AskProgram}",
+            // "program": "${command:AskProgram}", 
+            "console": "integratedTerminal",
+            "program": "${workspaceFolder}/_build/default/bin/main.bc",
+            "onlyDebugGlob": "<${workspaceFolder}/**/*>",
+            "yieldSteps": 1024,
+            "cwd": "${workspaceFolder}",
             "stopOnEntry": true
         }
     ]
