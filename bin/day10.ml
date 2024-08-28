@@ -11,10 +11,10 @@ end)
 
 let connection_of_symbol ?(res = 1) symbol sym_c c =
   match symbol with
-  | 'J' -> (c.x + res = sym_c.x && c.y = sym_c.y) || (c.y + 1 = sym_c.y && c.x = sym_c.x)
-  | 'L' -> (c.x - res = sym_c.x && c.y = sym_c.y) || (c.y + 1 = sym_c.y && c.x = sym_c.x)
-  | 'F' -> (c.x - res = sym_c.x && c.y = sym_c.y) || (c.y - 1 = sym_c.y && c.x = sym_c.x)
-  | '7' -> (c.x + res = sym_c.x && c.y = sym_c.y) || (c.y - 1 = sym_c.y && c.x = sym_c.x)
+  | 'J' -> (c.x + res = sym_c.x && c.y = sym_c.y) || (c.y + res = sym_c.y && c.x = sym_c.x)
+  | 'L' -> (c.x - res = sym_c.x && c.y = sym_c.y) || (c.y + res = sym_c.y && c.x = sym_c.x)
+  | 'F' -> (c.x - res = sym_c.x && c.y = sym_c.y) || (c.y - res = sym_c.y && c.x = sym_c.x)
+  | '7' -> (c.x + res = sym_c.x && c.y = sym_c.y) || (c.y - res = sym_c.y && c.x = sym_c.x)
   | 'S' -> Int.abs (c.x - sym_c.x) <= res && Int.abs (c.y - sym_c.y) <= res
   | '|' -> c.x = sym_c.x && Int.abs (c.y - sym_c.y) = res
   | '-' -> c.y = sym_c.y && Int.abs (c.x - sym_c.x) = res
@@ -142,43 +142,56 @@ let fill_matrix matrix loop =
     let c2 = coord_dir |> snd |> sum_coord coord in
     let v1 = Matrix.find_opt c1 loop in
     let v2 = Matrix.find_opt c2 loop in
-    let () = Printf.printf "\nchecking dirs" in
+    (* let () = Printf.printf "\nchecking dirs %!" in *)
     let are_connected =
       match (v1, v2) with
       | Some uv1, Some uv2 ->
-          let () = Printf.printf "\nchecking connections %c %c" uv1 uv2 in
+          let () = Printf.printf "\nchecking connections %c %c at %d,%d %d,%d %!" uv1 uv2 c1.x c1.y c2.x c2.y in
           let are_connected = connected ~res:2 (c1, uv1) (c2, uv2) in
           are_connected
       | _ -> false
     in
     if not are_connected then
       let fill_next = sum_coord (fst coord_dir) (snd coord_dir) |> sum_coord coord in
-      let () = Printf.printf " not connected" in
+      let () = Printf.printf " not connected %!" in
       Some fill_next
     else None
   in
   let rec fill_aux acc coord =
     let val_at = Matrix.find_opt coord matrix in
-    if val_at = None then acc
-    else
-      let directions = [ Top; Right; Bottom; Left ] in
-      let rec check_dirs dirs =
-        match dirs with
-        | [] -> acc
-        | dir :: rest -> (
-            let dir_coord = check_direction coord dir in
-            (*TODO check if dir_coord exist and if it doesnt, dont fill into that dir*)
-            match dir_coord with Some d -> fill_aux ((d, 'o') :: acc) d | None -> check_dirs rest)
-      in
-      check_dirs directions
+    match val_at with
+    | None -> acc
+    | Some _ ->
+        let directions = [ Top; Right; Bottom; Left ] in
+        let rec check_dirs dirs =
+          match dirs with
+          | [] -> acc
+          | dir :: rest -> (
+              let dir_coord = check_direction coord dir in
+              match dir_coord with
+              | Some coord ->
+                  let outside_bounds = Matrix.find_opt coord matrix = None in
+                  let already_filled = Matrix.find_opt coord acc = Some 'o' in
+                  if outside_bounds || already_filled then check_dirs rest
+                  else
+                    let new_acc = Matrix.add coord 'o' acc in
+                    fill_aux new_acc coord
+              | None -> check_dirs rest)
+        in
+        check_dirs directions
   in
 
   let start_coord = fill_start_coord loop in
-  fill_aux [ (start_coord, 'o') ] start_coord
+  let mtx_new = Matrix.of_list [ (start_coord, 'o') ] in
+  fill_aux mtx_new start_coord
 
 let execute' () =
   match start with
   | Some start_coord ->
+
+      let are_connected = connected ~res:2 ({x=2;y=4}, 'L') ({x=4;y=4}, '7') in
+      let () = Printf.printf "\nare connect %b" are_connected in
+
       let () = Printf.printf "\nstart x:%d y:%d" start_coord.x start_coord.y in
       let s_res = List.length matrix_list in
       let () = Printf.printf "initial resolution %d" s_res in
@@ -195,6 +208,8 @@ let execute' () =
       let loop_new = Matrix.of_list transformed_list in
 
       let fill = fill_matrix new_matrix loop_new in
-      let () = List.iter (fun e -> Printf.printf "\n coord %d %d: %c" (fst e).x (fst e).y (snd e)) fill in
-      0
+      let () =
+        List.iter (fun e -> Printf.printf "\n coord %d %d: %c" (fst e).x (fst e).y (snd e)) (Matrix.to_list fill)
+      in
+      2
   | None -> failwith "no start character S found"
