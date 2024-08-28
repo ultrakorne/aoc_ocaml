@@ -1,4 +1,4 @@
-let day10_inputs = Utils.read_lines "data/advent_10_data_test_2.txt"
+let day10_inputs = Utils.read_lines "data/advent_10_data.txt"
 
 (* y is row, x is column*)
 type coord = { x : int; y : int }
@@ -72,7 +72,7 @@ let inc_resolution matrix_lst =
         let m_coord = { x = coord.x * 2; y = coord.y * 2 } in
         let new_coord = { x = m_coord.x - 1; y = m_coord.y - 1 } in
         let new_res =
-          if new_coord.x > 0 && new_coord.y > 0 then [ (m_coord, c); (new_coord, '.') ] else [ (m_coord, c) ]
+          if new_coord.x > 0 && new_coord.y > 0 then [ (m_coord, c); (new_coord, 'x') ] else [ (m_coord, c) ]
         in
         aux tail (List.rev_append acc new_res)
   in
@@ -146,15 +146,14 @@ let fill_matrix matrix loop =
     let are_connected =
       match (v1, v2) with
       | Some uv1, Some uv2 ->
-          let () = Printf.printf "\nchecking connections %c %c at %d,%d %d,%d %!" uv1 uv2 c1.x c1.y c2.x c2.y in
-          let are_connected = connected ~res:2 (c1, uv1) (c2, uv2) in
-          are_connected
+          Printf.printf "\nchecking connections %c %c at %d,%d %d,%d %!" uv1 uv2 c1.x c1.y c2.x c2.y;
+          connected ~res:2 (c1, uv1) (c2, uv2)
       | _ -> false
     in
-    if not are_connected then
+    if not are_connected then (
       let fill_next = sum_coord (fst coord_dir) (snd coord_dir) |> sum_coord coord in
-      let () = Printf.printf " not connected %!" in
-      Some fill_next
+      (* Printf.printf " not connected %!"; *)
+      Some fill_next)
     else None
   in
   let rec fill_aux acc coord =
@@ -175,7 +174,8 @@ let fill_matrix matrix loop =
                   if outside_bounds || already_filled then check_dirs rest
                   else
                     let new_acc = Matrix.add coord 'o' acc in
-                    fill_aux new_acc coord
+                    Matrix.union (fun _ v1 _ -> Some v1) (fill_aux new_acc coord) (check_dirs rest)
+                    (* (fill_aux new_acc coord) *)
               | None -> check_dirs rest)
         in
         check_dirs directions
@@ -185,11 +185,39 @@ let fill_matrix matrix loop =
   let mtx_new = Matrix.of_list [ (start_coord, 'o') ] in
   fill_aux mtx_new start_coord
 
+let count_not_filled matrix loop filled =
+  let rec aux acc mtx =
+    match mtx with
+    | [] -> acc
+    | (coord, _) :: tail ->
+        let not_original_coord = coord.x mod 2 <> 0 in
+        let is_loop = Matrix.find_opt coord loop <> None in
+        if is_loop || not_original_coord then aux acc tail
+        else
+          (* if the original coord in the 4 direction does not have a point contained in filled, then it is inside the loop*)
+          let directions = [ { x = -1; y = -1 }; { x = 1; y = -1 }; { x = -1; y = 1 }; { x = 1; y = 1 } ] in
+          let rec coord_inside dir =
+            match dir with
+            | [] -> 1
+            | d :: tail ->
+                let coord_to_check = sum_coord coord d in
+                let not_filled = Matrix.find_opt coord_to_check filled = None in
+                if not_filled then coord_inside tail else 0
+          in
+          let is_inside = coord_inside directions in
+          (* Printf.printf "\ncoord %d,%d is inside: %d" coord.x coord.y is_inside; *)
+          aux (acc + is_inside) tail
+  in
+
+  (* let () =
+    List.iter (fun e -> Printf.printf "\n coord %d %d: %c" (fst e).x (fst e).y (snd e)) (Matrix.to_list filled)
+  in *)
+  aux 0 matrix
+
 let execute' () =
   match start with
   | Some start_coord ->
-
-      let are_connected = connected ~res:2 ({x=2;y=4}, 'L') ({x=4;y=4}, '7') in
+      let are_connected = connected ~res:2 ({ x = 2; y = 4 }, 'L') ({ x = 4; y = 4 }, '7') in
       let () = Printf.printf "\nare connect %b" are_connected in
 
       let () = Printf.printf "\nstart x:%d y:%d" start_coord.x start_coord.y in
@@ -203,13 +231,9 @@ let execute' () =
       let () = Printf.printf "\nloop size %d " loop_size in
 
       let new_matrix = Matrix.of_list new_matrix_list in
-
       let transformed_list = Matrix.to_list loop |> List.map (fun (k, c) -> ({ x = k.x * 2; y = k.y * 2 }, c)) in
       let loop_new = Matrix.of_list transformed_list in
 
       let fill = fill_matrix new_matrix loop_new in
-      let () =
-        List.iter (fun e -> Printf.printf "\n coord %d %d: %c" (fst e).x (fst e).y (snd e)) (Matrix.to_list fill)
-      in
-      2
+      count_not_filled new_matrix_list loop_new fill
   | None -> failwith "no start character S found"
