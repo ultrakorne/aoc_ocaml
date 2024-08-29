@@ -1,4 +1,4 @@
-let day10_inputs = Utils.read_lines "data/advent_10_data_test_2.txt"
+let day10_inputs = Utils.read_lines "data/advent_10_data.txt"
 
 (* y is row, x is column*)
 type coord = { x : int; y : int }
@@ -70,11 +70,12 @@ let inc_resolution matrix_lst =
     | [] -> acc
     | (coord, c) :: tail ->
         let m_coord = { x = coord.x * 2; y = coord.y * 2 } in
-        let new_coord = { x = m_coord.x - 1; y = m_coord.y - 1 } in
-        let new_res =
-          if new_coord.x > 0 && new_coord.y > 0 then [ (m_coord, c); (new_coord, 'x') ] else [ (m_coord, c) ]
-        in
-        aux tail (List.rev_append acc new_res)
+        let new_coord = { x = m_coord.x + 1; y = m_coord.y + 1 } in
+        let coord_list = [ (m_coord, c); (new_coord, 'x') ] in
+        let coord_list' = if m_coord.x = 0 then ({ x = m_coord.x - 1; y = m_coord.y + 1 }, 'x') :: coord_list else coord_list in
+        let coord_list'' = if m_coord.y = 0 then ({ x = m_coord.x + 1; y = m_coord.y - 1 }, 'x') :: coord_list' else coord_list' in
+        let coord_list''' = if m_coord.y = 0 && m_coord.x = 0 then ({ x = m_coord.x - 1; y = m_coord.y - 1 }, 'x') :: coord_list'' else coord_list'' in
+        aux tail (List.rev_append acc coord_list''')
   in
   aux matrix_lst []
 
@@ -120,10 +121,10 @@ let execute () =
   | None -> failwith "no start character S found"
 
 let fill_start_coord loop =
-  let start = { x = 0; y = 0 } in
+  let start = { x = (-1); y = (-1)} in
   let fill_start = Matrix.find_opt start loop in
   assert (fill_start = None);
-  { x = 1; y = 1 }
+  start
 
 type direction = Top | Right | Bottom | Left
 
@@ -146,7 +147,7 @@ let fill_matrix matrix loop =
     let are_connected =
       match (v1, v2) with
       | Some uv1, Some uv2 ->
-          Printf.printf "\nchecking connections %c %c at %d,%d %d,%d %!" uv1 uv2 c1.x c1.y c2.x c2.y;
+          (* Printf.printf "\nchecking connections %c %c at %d,%d %d,%d %!" uv1 uv2 c1.x c1.y c2.x c2.y; *)
           connected ~res:2 (c1, uv1) (c2, uv2)
       | _ -> false
     in
@@ -210,9 +211,9 @@ let count_not_filled matrix loop filled =
           aux (acc + is_inside) tail
   in
 
-  let () =
+  (* let () =
     List.iter (fun e -> Printf.printf "\n coord %d %d: %c" (fst e).x (fst e).y (snd e)) (Matrix.to_list filled)
-  in
+  in *)
   aux 0 matrix
 
 let execute' () =
