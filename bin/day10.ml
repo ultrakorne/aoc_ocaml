@@ -1,4 +1,4 @@
-let day10_inputs = Utils.read_lines "data/advent_10_data.txt"
+let day10_inputs = Utils.read_lines "data/advent_10_data_test_2.txt"
 
 (* y is row, x is column*)
 type coord = { x : int; y : int }
@@ -162,23 +162,24 @@ let fill_matrix matrix loop =
     | None -> acc
     | Some _ ->
         let directions = [ Top; Right; Bottom; Left ] in
-        let rec check_dirs dirs =
+        let rec check_dirs acc' dirs =
           match dirs with
-          | [] -> acc
+          | [] -> acc'
           | dir :: rest -> (
               let dir_coord = check_direction coord dir in
               match dir_coord with
               | Some coord ->
                   let outside_bounds = Matrix.find_opt coord matrix = None in
-                  let already_filled = Matrix.find_opt coord acc = Some 'o' in
-                  if outside_bounds || already_filled then check_dirs rest
+                  let already_filled = Matrix.find_opt coord acc' = Some 'o' in
+                  if outside_bounds || already_filled then check_dirs acc' rest
                   else
-                    let new_acc = Matrix.add coord 'o' acc in
-                    Matrix.union (fun _ v1 _ -> Some v1) (fill_aux new_acc coord) (check_dirs rest)
+                    let new_acc = Matrix.add coord 'o' acc' in
+                    let fi_acc =  fill_aux new_acc coord in
+                    check_dirs fi_acc rest
                     (* (fill_aux new_acc coord) *)
-              | None -> check_dirs rest)
+              | None -> check_dirs acc' rest)
         in
-        check_dirs directions
+        check_dirs acc directions
   in
 
   let start_coord = fill_start_coord loop in
@@ -209,9 +210,9 @@ let count_not_filled matrix loop filled =
           aux (acc + is_inside) tail
   in
 
-  (* let () =
+  let () =
     List.iter (fun e -> Printf.printf "\n coord %d %d: %c" (fst e).x (fst e).y (snd e)) (Matrix.to_list filled)
-  in *)
+  in
   aux 0 matrix
 
 let execute' () =
