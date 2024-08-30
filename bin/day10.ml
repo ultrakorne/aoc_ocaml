@@ -70,12 +70,18 @@ let inc_resolution matrix_lst =
     | [] -> acc
     | (coord, c) :: tail ->
         let m_coord = { x = coord.x * 2; y = coord.y * 2 } in
-        let new_coord = { x = m_coord.x + 1; y = m_coord.y + 1 } in
-        let coord_list = [ (m_coord, c); (new_coord, 'x') ] in
-        let coord_list' = if m_coord.x = 0 then ({ x = m_coord.x - 1; y = m_coord.y + 1 }, 'x') :: coord_list else coord_list in
-        let coord_list'' = if m_coord.y = 0 then ({ x = m_coord.x + 1; y = m_coord.y - 1 }, 'x') :: coord_list' else coord_list' in
-        let coord_list''' = if m_coord.y = 0 && m_coord.x = 0 then ({ x = m_coord.x - 1; y = m_coord.y - 1 }, 'x') :: coord_list'' else coord_list'' in
-        aux tail (List.rev_append acc coord_list''')
+        let coord_list = [ (m_coord, c); ({ x = m_coord.x + 1; y = m_coord.y + 1 }, 'x') ] in
+        let coord_list =
+          if m_coord.x = 0 then ({ x = m_coord.x - 1; y = m_coord.y + 1 }, 'x') :: coord_list else coord_list
+        in
+        let coord_list =
+          if m_coord.y = 0 then ({ x = m_coord.x + 1; y = m_coord.y - 1 }, 'x') :: coord_list else coord_list
+        in
+        let coord_list =
+          if m_coord.y = 0 && m_coord.x = 0 then ({ x = m_coord.x - 1; y = m_coord.y - 1 }, 'x') :: coord_list
+          else coord_list
+        in
+        aux tail (List.rev_append acc coord_list)
   in
   aux matrix_lst []
 
@@ -84,44 +90,27 @@ let get_loop matrix start =
     let adj = adjacent_connected matrix symbol in
     (* keep only adj elements that are not part of the loop yet*)
     let new_loop_elements =
-      List.filter
-        (fun (x, _) ->
-          let el = Matrix.find_opt x loop in
-          match el with Some _ -> false | None -> true)
-        adj
+      List.filter (fun (x, _) -> match Matrix.find_opt x loop with Some _ -> false | None -> true) adj
     in
     (* if all adj elements are part of the loop, we are back at start and can return the loop*)
     if List.length new_loop_elements = 0 then loop
     else
       (* even if we have 2 connected elemets, we start looping in the first direction*)
       let next_elem = List.hd new_loop_elements in
-      (* let () = Printf.printf " > next %c %!" (snd next_elem) in *)
       let new_loop = Matrix.add (fst next_elem) (snd next_elem) loop in
       aux next_elem new_loop
   in
   Matrix.of_list [ start ] |> aux start
 
 let execute () =
-  (* let coord1 = Matrix.find { x = 2; y = 1 } matrix in *)
   match start with
   | Some start_coord ->
-      (* let adj = adjacent matrix start_coord in *)
-      (* let () = Printf.printf "\nstart x:%d y:%d" start_coord.x start_coord.y in
-         let () = Printf.printf "\nvalue %c" coord1 in
-         let () = List.iter (fun x -> Printf.printf "\n adj to start: %c at %d,%d " (snd x) (fst x).x (fst x).y) adj in *)
-      (* let adj_conn = adjacent_connected matrix (start_coord, 'S') in *)
-
-      (* let () =
-           List.iter (fun x -> Printf.printf "\n adj conn to start: %c at %d,%d " (snd x) (fst x).x (fst x).y) adj_conn
-         in *)
-      let loop = get_loop matrix (start_coord, 'S') in
-      let loop_size = Matrix.to_list loop |> List.length in
-      let () = Printf.printf "\nloop size %d " loop_size in
+      let loop_size = get_loop matrix (start_coord, 'S') |> Matrix.to_list |> List.length in
       loop_size / 2
   | None -> failwith "no start character S found"
 
 let fill_start_coord loop =
-  let start = { x = (-1); y = (-1)} in
+  let start = { x = -1; y = -1 } in
   let fill_start = Matrix.find_opt start loop in
   assert (fill_start = None);
   start
@@ -143,23 +132,11 @@ let fill_matrix matrix loop =
     let c2 = coord_dir |> snd |> sum_coord coord in
     let v1 = Matrix.find_opt c1 loop in
     let v2 = Matrix.find_opt c2 loop in
-    (* let () = Printf.printf "\nchecking dirs %!" in *)
-    let are_connected =
-      match (v1, v2) with
-      | Some uv1, Some uv2 ->
-          (* Printf.printf "\nchecking connections %c %c at %d,%d %d,%d %!" uv1 uv2 c1.x c1.y c2.x c2.y; *)
-          connected ~res:2 (c1, uv1) (c2, uv2)
-      | _ -> false
-    in
-    if not are_connected then (
-      let fill_next = sum_coord (fst coord_dir) (snd coord_dir) |> sum_coord coord in
-      (* Printf.printf " not connected %!"; *)
-      Some fill_next)
-    else None
+    let are_connected = match (v1, v2) with Some uv1, Some uv2 -> connected ~res:2 (c1, uv1) (c2, uv2) | _ -> false in
+    if not are_connected then Some (sum_coord (fst coord_dir) (snd coord_dir) |> sum_coord coord) else None
   in
   let rec fill_aux acc coord =
-    let val_at = Matrix.find_opt coord matrix in
-    match val_at with
+    match Matrix.find_opt coord matrix with
     | None -> acc
     | Some _ ->
         let directions = [ Top; Right; Bottom; Left ] in
@@ -175,9 +152,8 @@ let fill_matrix matrix loop =
                   if outside_bounds || already_filled then check_dirs acc' rest
                   else
                     let new_acc = Matrix.add coord 'o' acc' in
-                    let fi_acc =  fill_aux new_acc coord in
-                    check_dirs fi_acc rest
-                    (* (fill_aux new_acc coord) *)
+                    let new_acc = fill_aux new_acc coord in
+                    check_dirs new_acc rest
               | None -> check_dirs acc' rest)
         in
         check_dirs acc directions
@@ -207,35 +183,17 @@ let count_not_filled matrix loop filled =
                 if not_filled then coord_inside tail else 0
           in
           let is_inside = coord_inside directions in
-          (* Printf.printf "\ncoord %d,%d is inside: %d" coord.x coord.y is_inside; *)
           aux (acc + is_inside) tail
   in
-
-  (* let () =
-    List.iter (fun e -> Printf.printf "\n coord %d %d: %c" (fst e).x (fst e).y (snd e)) (Matrix.to_list filled)
-  in *)
   aux 0 matrix
 
 let execute' () =
   match start with
   | Some start_coord ->
-      let are_connected = connected ~res:2 ({ x = 2; y = 4 }, 'L') ({ x = 4; y = 4 }, '7') in
-      let () = Printf.printf "\nare connect %b" are_connected in
-
-      let () = Printf.printf "\nstart x:%d y:%d" start_coord.x start_coord.y in
-      let s_res = List.length matrix_list in
-      let () = Printf.printf "initial resolution %d" s_res in
       let new_matrix_list = inc_resolution matrix_list in
-      let () = Printf.printf "\n new resolution matrix size %d" (List.length new_matrix_list) in
-
       let loop = get_loop matrix (start_coord, 'S') in
-      let loop_size = Matrix.to_list loop |> List.length in
-      let () = Printf.printf "\nloop size %d " loop_size in
-
       let new_matrix = Matrix.of_list new_matrix_list in
       let transformed_list = Matrix.to_list loop |> List.map (fun (k, c) -> ({ x = k.x * 2; y = k.y * 2 }, c)) in
       let loop_new = Matrix.of_list transformed_list in
-
-      let fill = fill_matrix new_matrix loop_new in
-      count_not_filled new_matrix_list loop_new fill
+      fill_matrix new_matrix loop_new |> count_not_filled new_matrix_list loop_new
   | None -> failwith "no start character S found"
