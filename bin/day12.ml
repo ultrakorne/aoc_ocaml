@@ -1,4 +1,4 @@
-let day12_inputs = Utils.read_lines "data/advent_12_data.txt"
+let day12_inputs = Utils.read_lines "data/advent_12_data_test.txt"
 
 type spring = { dmg_mask : int; op_mask : int; unkn_mask : int; length : int }
 type spring_line = { spring : spring; damage_group : int list }
@@ -93,10 +93,16 @@ let check_combinations spring_line =
       match combs with
       | [] -> acc
       | c :: tail ->
-          Printf.printf "\nTraversing combination %s" (binary_string_of_int (fst c));
+          (* Printf.printf "\nTraversing combination %s" (binary_string_of_int (fst c)); *)
           let sub_spring = get_subspring spring (snd c) in
           let valid = aux rest_nums sub_spring in
-          Printf.printf "\ncombination %s is valid %d " (binary_string_of_int (fst c)) valid;
+          (* Printf.printf "\ncombination %s is valid %d " (binary_string_of_int (fst c)) valid;
+          Printf.printf "\n dmg mask %s -> rest nums %d"
+            (binary_string_of_int sub_spring.dmg_mask)
+            (List.length rest_nums); *)
+
+          (*edge case .##.?#??.#.?# 2,1,1,1 if this is the last number to check and the dmg_mask is not 0 it means there is still a symbol # on the right side that has not been fulfilled so this solution should be discarded*)
+          let valid = if List.length rest_nums = 0 && sub_spring.dmg_mask <> 0 then 0 else valid in
           traverse_comb (acc + valid) tail rest_nums spring
     in
 
@@ -105,9 +111,9 @@ let check_combinations spring_line =
     | [] -> 1
     | n :: rest ->
         let start = set_bits n in
-        Printf.printf "\n start find valid comb for num %d: %s" n (binary_string_of_int start);
+        (* Printf.printf "\n start find valid comb for num %d: %s" n (binary_string_of_int start); *)
         let combs = find_valid_combinations [] start n 0 spring in
-        List.iter (fun c -> Printf.printf "\n valid combinations %s %d" (binary_string_of_int (fst c)) (snd c)) combs;
+        (* List.iter (fun c -> Printf.printf "\n valid combinations %s %d" (binary_string_of_int (fst c)) (snd c)) combs; *)
         if List.is_empty combs then 0
         else
           (* combs snd has the lenght of how much left there is for the rest of the nums *)
@@ -120,12 +126,12 @@ let springs = parse_input day12_inputs
 
 let execute () =
   let first_spring = List.hd springs in
-  Printf.printf "dmg mask %d and op mask %d" first_spring.spring.dmg_mask first_spring.spring.op_mask;
-  Printf.printf "\ndmg mask %s and op mask %s, ? mask %s - length %d"
-    (binary_string_of_int first_spring.spring.dmg_mask)
-    (binary_string_of_int first_spring.spring.op_mask)
-    (binary_string_of_int first_spring.spring.unkn_mask)
-    first_spring.spring.length;
-  check_combinations first_spring
+     Printf.printf "dmg mask %d and op mask %d, ?mask = %d" first_spring.spring.dmg_mask first_spring.spring.op_mask first_spring.spring.unkn_mask;
+     Printf.printf "\ndmg mask %s and op mask %s, ? mask %s - length %d"
+       (binary_string_of_int first_spring.spring.dmg_mask)
+       (binary_string_of_int first_spring.spring.op_mask)
+       (binary_string_of_int first_spring.spring.unkn_mask)
+       first_spring.spring.length;
+  List.fold_left (fun acc x -> acc + check_combinations x) 0 springs
 
 let execute' () = 0
