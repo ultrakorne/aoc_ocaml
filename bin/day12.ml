@@ -1,13 +1,9 @@
 open Stdint
 
-let day12_inputs = Utils.read_lines "data/advent_12_data.txt"
+let day12_inputs = Utils.read_lines "data/advent_12_data_test.txt"
 
 type spring = { dmg_mask : int128; op_mask : int128; unkn_mask : int128; length : int }
 type spring_line = { spring : spring; damage_group : int list }
-
-let binary_string_of_int n =
-  let rec aux n acc = if n = 0 then acc else aux (n lsr 1) (string_of_int (n land 1) ^ acc) in
-  if n = 0 then "0" else aux n ""
 
 let set_bits n =
   let rec aux acc n' =
@@ -34,7 +30,7 @@ let parse_input input =
       let new_acc =
         match spring_input.[i] with
         | '.' -> { new_mask with op_mask = Int128.logor new_mask.op_mask Int128.one }
-        | '#' -> { new_mask with dmg_mask = Int128.logor new_mask.dmg_mask Int128.one  }
+        | '#' -> { new_mask with dmg_mask = Int128.logor new_mask.dmg_mask Int128.one }
         | '?' -> { new_mask with unkn_mask = Int128.logor new_mask.unkn_mask Int128.one }
         | _ -> failwith "only . # and ? supported"
       in
@@ -44,7 +40,9 @@ let parse_input input =
     let split = String.split_on_char ' ' line in
     let spring_input = List.hd split in
     let nums = List.tl split |> List.hd |> String.split_on_char ',' |> List.map int_of_string in
-    let spring_line = parse_spring { dmg_mask = Int128.zero; op_mask = Int128.zero; unkn_mask = Int128.zero; length = 0 } spring_input 0 in
+    let spring_line =
+      parse_spring { dmg_mask = Int128.zero; op_mask = Int128.zero; unkn_mask = Int128.zero; length = 0 } spring_input 0
+    in
     { spring = spring_line; damage_group = nums }
   in
   let rec aux acc lines =
@@ -67,7 +65,11 @@ let get_subspring spring n =
 
 let check_combinations spring_line =
   let rec find_valid_combinations acc comb n shift spring =
-    if shift + n > spring.length then acc
+    if shift + n > spring.length then
+      (* let () =
+           Printf.printf "\n -- n: %d shift %d  for spring %s of length %d acc l %d" n shift (Int128.to_string_bin spring.unkn_mask) spring.length (List.length acc)
+         in *)
+      acc
     else
       let comb' = Int128.shift_left comb shift in
       let dmg_masked = Int128.logor comb' spring.dmg_mask in
@@ -75,16 +77,16 @@ let check_combinations spring_line =
       let check_comb = Int128.shift_right_logical comb' (Int.max 0 (shift - 1)) in
       let dmg_masked_check = Int128.shift_right_logical dmg_masked (Int.max 0 (shift - 1)) in
 
-      (* Printf.printf "\ndmg_masked %s " (binary_string_of_int dmg_masked);
-         Printf.printf "check_comb %s " (binary_string_of_int check_comb );
-         Printf.printf "dmg_masked_check  %s " (binary_string_of_int dmg_masked_check  ); *)
+      (* Printf.printf "\ndmg_masked %s " (Int128.to_string_bin dmg_masked);
+         Printf.printf "check_comb %s " (Int128.to_string_bin check_comb);
+         Printf.printf "dmg_masked_check  %s " (Int128.to_string_bin dmg_masked_check); *)
       let is_valid_comb_dmg = check_comb = dmg_masked_check in
 
       (*check that is not on the ., the op mask since those cannot have damage*)
       let op_masked = Int128.logand comb' spring.op_mask in
       let is_valid_comb_op = op_masked = Int128.zero in
-      (* Printf.printf "\n(%d/%d) comb %s is valid for dmg %b and valid op %b" shift spring.length
-         (binary_string_of_int comb') is_valid_comb_dmg is_valid_comb_op; *)
+      (* Printf.printf "\nn:%d (%d/%d) comb %s is valid for dmg %b and valid op %b" n shift spring.length
+         (Int128.to_string_bin comb') is_valid_comb_dmg is_valid_comb_op; *)
       if is_valid_comb_dmg && is_valid_comb_op then
         find_valid_combinations ((comb', shift - 1) :: acc) comb n (shift + 1) spring
       else find_valid_combinations acc comb n (shift + 1) spring
@@ -93,9 +95,15 @@ let check_combinations spring_line =
   let rec aux nums spring =
     let rec traverse_comb acc combs rest_nums spring =
       match combs with
-      | [] -> acc
+      | [] ->
+          Printf.printf "\n [DONE] acc:%d spring l %d unkn mask %s" acc spring.length
+            (Int128.to_string_bin spring.unkn_mask);
+          acc
       | c :: tail ->
-          (* Printf.printf "\nTraversing combination %s" (binary_string_of_int (fst c)); *)
+          let comb_shifts = List.fold_left (fun acc x -> acc ^ "_" ^ string_of_int (snd x)) "" (c :: tail) in
+          Printf.printf "\n[traversing] %s spring l %d ACC: %d" comb_shifts spring.length acc;
+          (* Printf.printf "\nTraversing combination %s" (Int128.to_string_bin (fst c)); *)
+          (* Printf.printf "\nTraversing combination lenght %d" (snd c); *)
           let sub_spring = get_subspring spring (snd c) in
           let valid = aux rest_nums sub_spring in
 
@@ -106,7 +114,10 @@ let check_combinations spring_line =
 
           (*edge case .##.?#??.#.?# 2,1,1,1 if this is the last number to check and the dmg_mask is not 0 it means there is still a symbol # on the right side that has not been fulfilled so this solution should be discarded*)
           let valid = if List.length rest_nums = 0 && sub_spring.dmg_mask <> Int128.zero then 0 else valid in
-          traverse_comb (acc + valid) tail rest_nums spring
+          let result = traverse_comb (acc + valid) tail rest_nums spring in
+
+          Printf.printf "\n[TRAVERSE DONE] %s spring l %d ACC: %d result:%d" comb_shifts spring.length acc result;
+          result
     in
 
     (* TODO for every combs , we expand based on the remaining length*)
@@ -120,22 +131,75 @@ let check_combinations spring_line =
         if List.is_empty combs then 0
         else
           (* combs snd has the lenght of how much left there is for the rest of the nums *)
-          traverse_comb 0 combs rest spring
+          let result = traverse_comb 0 combs rest spring in
+          (* Printf.printf "\n-DONE-"; *)
+          result
   in
 
   aux spring_line.damage_group spring_line.spring
 
 let springs = parse_input day12_inputs
 
-let execute () =
-  let first_spring = List.hd springs in
-  (* Printf.printf "dmg mask %d and op mask %d, ?mask = %d" first_spring.spring.dmg_mask first_spring.spring.op_mask
-    first_spring.spring.unkn_mask; *)
-  Printf.printf "\ndmg mask %s and op mask %s, ? mask %s - length %d"
-    (Int128.to_string_bin first_spring.spring.dmg_mask)
-    (Int128.to_string_bin  first_spring.spring.op_mask)
-    (Int128.to_string_bin  first_spring.spring.unkn_mask)
-    first_spring.spring.length;
-  List.fold_left (fun acc x -> acc + check_combinations x) 0 springs
+let make_longer springs =
+  let rec aux acc springs =
+    let rec extend_spring qs s i =
+      if i = 0 then qs
+      else
+        let new_dmg_mask = Int128.shift_left qs.spring.dmg_mask (s.spring.length + 1) in
+        let new_dmg_mask = Int128.logor new_dmg_mask s.spring.dmg_mask in
 
-let execute' () = 0
+        let new_op_mask = Int128.shift_left qs.spring.op_mask (s.spring.length + 1) in
+        let new_op_mask = Int128.logor new_op_mask s.spring.op_mask in
+
+        let new_unkn_mask = Int128.shift_left qs.spring.unkn_mask 1 |> Int128.logor Int128.one in
+        let new_unkn_mask = Int128.shift_left new_unkn_mask s.spring.length in
+        let new_unkn_mask = Int128.logor new_unkn_mask s.spring.unkn_mask in
+
+        let new_lenght = qs.spring.length + s.spring.length + 1 in
+        let next_s =
+          { dmg_mask = new_dmg_mask; op_mask = new_op_mask; unkn_mask = new_unkn_mask; length = new_lenght }
+        in
+        let new_qs = { spring = next_s; damage_group = s.damage_group @ qs.damage_group } in
+        extend_spring new_qs s (i - 1)
+    in
+
+    match springs with
+    | [] -> acc
+    | s :: rest ->
+        let longer = extend_spring s s 4 in
+        aux (longer :: acc) rest
+  in
+  aux [] springs
+
+let springs' = make_longer springs
+
+let process_springs springs =
+  List.fold_left
+    (fun acc x ->
+      (* Printf.printf "...%!"; *)
+      let combs = check_combinations x in
+      (* Printf.printf "\n Combination acc: %d %!" (acc + combs); *)
+      acc + combs)
+    0 springs
+
+let execute () =
+  (* let first_spring = List.hd springs' in *)
+  (* Printf.printf "dmg mask %d and op mask %d, ?mask = %d" first_spring.spring.dmg_mask first_spring.spring.op_mask
+     first_spring.spring.unkn_mask; *)
+  (* Printf.printf "\ndmg mask %s and op mask %s, ? mask %s - length %d"
+       (Int128.to_string_bin first_spring.spring.dmg_mask)
+       (Int128.to_string_bin first_spring.spring.op_mask)
+       (Int128.to_string_bin first_spring.spring.unkn_mask)
+       first_spring.spring.length;
+     List.iter (fun x -> Printf.printf " %d " x) first_spring.damage_group; *)
+  let t = Sys.time () in
+  let result = process_springs springs in
+  Printf.printf "\nExecution time: %fs\n" (Sys.time () -. t);
+  result
+
+let execute' () =
+  let t = Sys.time () in
+  Printf.printf "Number of springs: %d\n%!" (List.length springs);
+  let result = process_springs springs in
+  Printf.printf "\nExecution time: %fs\n" (Sys.time () -. t);
+  result
