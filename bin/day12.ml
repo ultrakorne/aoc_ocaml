@@ -63,6 +63,14 @@ let get_subspring spring n =
     length = n;
   }
 
+type combination = { bitmap : Int128.t; shift : int; num_bits : int }
+
+let key_from_combinations combs nums =
+  let key =
+    List.fold_left (fun acc comb -> acc ^ string_of_int comb.num_bits ^ "<" ^ string_of_int comb.shift ^ ",") "" combs
+  in
+  List.fold_left (fun acc num -> acc ^ "|" ^ string_of_int num) key nums
+
 let check_combinations spring_line =
   let rec find_valid_combinations acc comb n shift spring =
     if shift + n > spring.length then
@@ -88,7 +96,7 @@ let check_combinations spring_line =
       (* Printf.printf "\nn:%d (%d/%d) comb %s is valid for dmg %b and valid op %b" n shift spring.length
          (Int128.to_string_bin comb') is_valid_comb_dmg is_valid_comb_op; *)
       if is_valid_comb_dmg && is_valid_comb_op then
-        find_valid_combinations ((comb', shift - 1) :: acc) comb n (shift + 1) spring
+        find_valid_combinations ({ bitmap = comb'; shift = shift - 1; num_bits = n } :: acc) comb n (shift + 1) spring
       else find_valid_combinations acc comb n (shift + 1) spring
   in
 
@@ -96,15 +104,14 @@ let check_combinations spring_line =
     let rec traverse_comb acc combs rest_nums spring =
       match combs with
       | [] ->
-          Printf.printf "\n [DONE] acc:%d spring l %d unkn mask %s" acc spring.length
-            (Int128.to_string_bin spring.unkn_mask);
+          (* Printf.printf "\n [DONE] acc:%d spring l %d unkn mask %s" acc spring.length (Int128.to_string_bin spring.unkn_mask); *)
           acc
       | c :: tail ->
-          let comb_shifts = List.fold_left (fun acc x -> acc ^ "_" ^ string_of_int (snd x)) "" (c :: tail) in
-          Printf.printf "\n[traversing] %s spring l %d ACC: %d" comb_shifts spring.length acc;
+          (* let comb_shifts = List.fold_left (fun acc x -> acc ^ "_" ^ string_of_int (x.shift)) "" (c :: tail) in
+             Printf.printf "\n[traversing] %s spring l %d ACC: %d" comb_shifts spring.length acc; *)
           (* Printf.printf "\nTraversing combination %s" (Int128.to_string_bin (fst c)); *)
           (* Printf.printf "\nTraversing combination lenght %d" (snd c); *)
-          let sub_spring = get_subspring spring (snd c) in
+          let sub_spring = get_subspring spring c.shift in
           let valid = aux rest_nums sub_spring in
 
           (* Printf.printf "\ncombination %s is valid %d " (binary_string_of_int (fst c)) valid;
@@ -116,7 +123,7 @@ let check_combinations spring_line =
           let valid = if List.length rest_nums = 0 && sub_spring.dmg_mask <> Int128.zero then 0 else valid in
           let result = traverse_comb (acc + valid) tail rest_nums spring in
 
-          Printf.printf "\n[TRAVERSE DONE] %s spring l %d ACC: %d result:%d" comb_shifts spring.length acc result;
+          (* Printf.printf "\n[TRAVERSE DONE] %s spring l %d ACC: %d result:%d" comb_shifts spring.length acc result; *)
           result
     in
 
@@ -131,7 +138,11 @@ let check_combinations spring_line =
         if List.is_empty combs then 0
         else
           (* combs snd has the lenght of how much left there is for the rest of the nums *)
+          (* let first_comb = (List.hd combs) in *)
+          let key = (key_from_combinations combs rest) ^ ":"^ (string_of_int spring.length) in
           let result = traverse_comb 0 combs rest spring in
+          (* let () = Printf.printf "\n comb size %d %s. numbits=%d, shif=%d \nkey%s = %d" (List.length combs) (Int128.to_string_bin first_comb.bitmap) first_comb.num_bits first_comb.shift key result in *)
+          let () = Printf.printf "\nkey%s = %d" key result in
           (* Printf.printf "\n-DONE-"; *)
           result
   in
