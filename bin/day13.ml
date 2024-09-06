@@ -1,4 +1,4 @@
-let day13_inputs = Utils.read_lines "data/advent_13_data_test.txt"
+let day13_inputs = Utils.read_lines "data/advent_13_data.txt"
 
 let parse_pattern_horizontally input =
   let rec aux all_lines acc acc_lst =
@@ -44,49 +44,57 @@ let change_direction_all patterns =
 
 let vrt_patterns = change_direction_all hor_patterns
 
-let check_reflection (pattern : string array) =
+let check_reflection ?(exclude = -1) (pattern : string array) =
   let rec aux p i l1 l2 =
     if i + 1 >= Array.length p then 0
+    else if i + 1 = exclude then aux p (i + 1) (i + 1) (i + 2)
     else if l1 < 0 || l2 >= Array.length p then i + 1
     else if p.(l1) = p.(l2) then aux p i (l1 - 1) (l2 + 1)
     else aux p (i + 1) (i + 1) (i + 2)
   in
-  Array.iter (fun s -> Printf.printf "\n%s" s) pattern;
+  (* Array.iter (fun s -> Printf.printf "\n%s" s) pattern; *)
   let result = aux pattern 0 0 1 in
-  Printf.printf "\nresult %d" result;
+  (* Printf.printf "\nresult %d" result; *)
   result
 
 let check_reflection_smudge pattern =
   let smudge_string i str =
     match str.[i] with
-    | '.' -> String.sub str 0 (i - 1) ^ "#" ^ String.sub str (i + 1) (String.length str - (i + 1))
-    | '#' -> String.sub str 0 (i - 1) ^ "." ^ String.sub str (i + 1) (String.length str - (i + 1))
+    | '.' -> String.sub str 0 i ^ "#" ^ String.sub str (i + 1) (String.length str - (i + 1))
+    | '#' -> String.sub str 0 i ^ "." ^ String.sub str (i + 1) (String.length str - (i + 1))
     | _ -> failwith "only . and # are valid chars"
   in
-  let rec smudge pattern char_i line =
-    if line >= Array.length pattern then None
+  let smudge pattern char_i line =
+    let pattern_line = pattern.(line) in
+    let new_line = smudge_string char_i pattern_line in
+    let new_arr = Array.copy pattern in
+    new_arr.(line) <- new_line;
+    new_arr
+  in
+  let rec aux pattern char_i line prev_reflection =
+    if line >= Array.length pattern then 0
+    else if char_i >= String.length pattern.(line) then aux pattern 0 (line + 1) prev_reflection
     else
-      let pattern_line = pattern.(line) in
-      if char_i >= String.length pattern_line then smudge pattern 0 (line + 1)
-      else
-        let new_line = smudge_string char_i pattern_line in
-        let new_arr = Array.copy pattern in
-        new_arr.(line) <- new_line;
-        Some new_arr
+      let smudged_pattern = smudge pattern char_i line in
+      (* Printf.printf "\naux %d %d %!" char_i line; *)
+      let result = check_reflection smudged_pattern ~exclude:prev_reflection in
+      if result <> 0 && result <> prev_reflection then
+        (* let () = Printf.printf "\nresult %d  - %d %d %!" result char_i line in *)
+        result
+      else aux pattern (char_i + 1) line prev_reflection
   in
-  let rec aux pattern char_i line =
-    let smudged_pattern = smudge pattern char_i line in
-    match smudged_pattern with
-    | None -> 0
-    | Some smudged ->
-        let result = check_reflection smudged in
-        if result <> 0 then result else aux pattern (char_i + 1) line
-  in
-  aux pattern 0 0
+  let prev_reflection = check_reflection pattern in
+  aux pattern 0 0 prev_reflection
 
 let execute () =
-  Printf.printf "\nvertical patterns to check %d" (List.length vrt_patterns);
-  List.fold_left (fun acc x -> acc + check_reflection (Array.of_list x)) 0 vrt_patterns
-  + (100 * List.fold_left (fun acc x -> acc + check_reflection (Array.of_list x)) 0 hor_patterns)
+  List.fold_left2
+    (fun acc v h -> acc + check_reflection (Array.of_list v) + (100 * check_reflection (Array.of_list h)))
+    0 vrt_patterns hor_patterns
 
-let execute' () = 0
+let execute' () =
+  List.fold_left2
+    (fun acc v h ->
+      let hor = check_reflection_smudge (Array.of_list h) in
+      let ver = check_reflection_smudge (Array.of_list v) in
+      acc + ver + (100 * hor))
+    0 vrt_patterns hor_patterns
