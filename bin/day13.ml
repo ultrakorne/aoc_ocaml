@@ -8,7 +8,6 @@ let parse_pattern_horizontally input =
         let is_empty = String.trim l = "" in
         if is_empty then aux rest [] (List.rev acc :: acc_lst) else aux rest (l :: acc) acc_lst
   in
-
   aux input [] []
 
 let hor_patterns = parse_pattern_horizontally day13_inputs
@@ -52,21 +51,18 @@ let check_reflection ?(exclude = -1) (pattern : string array) =
     else if p.(l1) = p.(l2) then aux p i (l1 - 1) (l2 + 1)
     else aux p (i + 1) (i + 1) (i + 2)
   in
-  (* Array.iter (fun s -> Printf.printf "\n%s" s) pattern; *)
-  let result = aux pattern 0 0 1 in
-  (* Printf.printf "\nresult %d" result; *)
-  result
+  aux pattern 0 0 1
 
 let check_reflection_smudge pattern =
   let smudge_string i str =
+    let smudge_char c i = String.sub str 0 i ^ c ^ String.sub str (i + 1) (String.length str - (i + 1)) in
     match str.[i] with
-    | '.' -> String.sub str 0 i ^ "#" ^ String.sub str (i + 1) (String.length str - (i + 1))
-    | '#' -> String.sub str 0 i ^ "." ^ String.sub str (i + 1) (String.length str - (i + 1))
+    | '.' -> smudge_char "#" i
+    | '#' -> smudge_char "." i
     | _ -> failwith "only . and # are valid chars"
   in
   let smudge pattern char_i line =
-    let pattern_line = pattern.(line) in
-    let new_line = smudge_string char_i pattern_line in
+    let new_line = pattern.(line) |> smudge_string char_i in
     let new_arr = Array.copy pattern in
     new_arr.(line) <- new_line;
     new_arr
@@ -75,26 +71,16 @@ let check_reflection_smudge pattern =
     if line >= Array.length pattern then 0
     else if char_i >= String.length pattern.(line) then aux pattern 0 (line + 1) prev_reflection
     else
-      let smudged_pattern = smudge pattern char_i line in
-      (* Printf.printf "\naux %d %d %!" char_i line; *)
-      let result = check_reflection smudged_pattern ~exclude:prev_reflection in
-      if result <> 0 && result <> prev_reflection then
-        (* let () = Printf.printf "\nresult %d  - %d %d %!" result char_i line in *)
-        result
-      else aux pattern (char_i + 1) line prev_reflection
+      let result = smudge pattern char_i line |> check_reflection ~exclude:prev_reflection in
+      if result <> 0 && result <> prev_reflection then result else aux pattern (char_i + 1) line prev_reflection
   in
   let prev_reflection = check_reflection pattern in
   aux pattern 0 0 prev_reflection
 
-let execute () =
+let reflect_with reflection_fun =
   List.fold_left2
-    (fun acc v h -> acc + check_reflection (Array.of_list v) + (100 * check_reflection (Array.of_list h)))
+    (fun acc v h -> acc + reflection_fun (Array.of_list v) + (100 * reflection_fun (Array.of_list h)))
     0 vrt_patterns hor_patterns
 
-let execute' () =
-  List.fold_left2
-    (fun acc v h ->
-      let hor = check_reflection_smudge (Array.of_list h) in
-      let ver = check_reflection_smudge (Array.of_list v) in
-      acc + ver + (100 * hor))
-    0 vrt_patterns hor_patterns
+let execute () = reflect_with check_reflection
+let execute' () = reflect_with check_reflection_smudge
