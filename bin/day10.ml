@@ -52,11 +52,8 @@ let parse_input input =
     match line with
     | [] -> (mtx_lst, start)
     | l :: tail ->
-        (* let () = Printf.printf "\nsequencing line %d %!" y in *)
         let seq = String.to_seq l in
-        (* let () = Printf.printf "\nparsing line %d %!" y in *)
         let row, start_coord = parse_row seq 0 y [] start in
-        (* let () = Printf.printf "\nrecurs call line %d list has %d elements %!" y (List.length mtx_lst) in *)
         aux tail (y + 1) (List.rev_append row mtx_lst) start_coord
   in
   aux input 0 [] None
