@@ -47,12 +47,9 @@ let add_in_boxes steps =
     in
 
     let hash = hash_string step.label in
-    let new_boxes =
-      IntMap.update hash
-        (function None -> if step.op = '-' then None else Some [ step ] | Some h -> Some (update_inside_box h step))
-        boxes
-    in
-    new_boxes
+    IntMap.update hash
+      (function None -> if step.op = '-' then None else Some [ step ] | Some h -> Some (update_inside_box h step))
+      boxes
   in
   let rec aux steps boxes =
     match steps with
@@ -61,24 +58,17 @@ let add_in_boxes steps =
         let new_boxes = add_step s boxes in
         aux rest new_boxes
   in
-  let boxes = aux steps IntMap.empty in
-  IntMap.filter(fun _ v -> List.length v > 0) boxes 
+  aux steps IntMap.empty |> IntMap.filter (fun _ v -> List.length v > 0)
 
 let compute_score boxes =
   let rec box_score box box_value acc i =
     match box with
     | [] -> acc
-    | lens :: rest -> 
-      let new_acc = acc + box_value * i * lens.focal_length in
-      box_score rest box_value new_acc (i+1)
+    | lens :: rest ->
+        let new_acc = acc + (box_value * i * lens.focal_length) in
+        box_score rest box_value new_acc (i + 1)
   in
-  IntMap.fold(fun k v acc -> acc + (box_score v (k+1) 0 1) ) boxes 0
+  IntMap.fold (fun k v acc -> acc + box_score v (k + 1) 0 1) boxes 0
 
 let execute () = parse_input (List.hd day15_inputs) |> compute_hash
-
-let execute' () =
-  let input = parse_input' (List.hd day15_inputs) in
-  let boxes = add_in_boxes input in
-  (* IntMap.iter (fun k v -> Printf.printf "\n[box %d] items in the box %d, first elem %s" k (List.length v) (List.hd v).label) boxes; *)
-  (* List.iter (fun x -> Printf.printf "\n%d -> %s op %c lense %d" (hash_string x.label) x.label x.op x.focal_length) input; *)
-  compute_score boxes
+let execute' () = parse_input' (List.hd day15_inputs) |> add_in_boxes |> compute_score
