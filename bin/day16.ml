@@ -53,7 +53,7 @@ let reflect heading char =
   | '.', _ | '-', (Right | Left) | '|', (Up | Down) -> [ heading ]
   | _ -> failwith "reflect all case should be covered"
 
-let light_beam grid =
+let light_beam grid start_coord start_heading =
   let light_cell cell heading =
     let new_headings = reflect heading cell.cell_type in
     let missing_headings = List.filter (fun x -> not (List.mem x cell.headings)) new_headings in
@@ -63,28 +63,25 @@ let light_beam grid =
 
   let rec aux grid coord heading =
     (* propagate the light, from coord to a list of headings *)
-    let light_new_heading grid coord heading_list =
-      List.fold_left
-        (fun acc h ->
-          let new_coord = coord_from_heading coord h in
-          aux acc new_coord h)
-        grid heading_list
-    in
     let cell = Grid.find_opt coord grid in
     match cell with
     | None -> grid
     | Some c -> (
-        let new_heading, new_cell = light_cell c heading in
-        match new_heading with
+        let new_headings, new_cell = light_cell c heading in
+        match new_headings with
         | None -> grid
         | Some heading_list ->
             let new_grid =
               Grid.update coord (function None -> failwith "all cell should exist" | Some _ -> Some new_cell) grid
             in
-            light_new_heading new_grid coord heading_list)
+            List.fold_left
+              (fun acc h ->
+                let new_coord = coord_from_heading coord h in
+                aux acc new_coord h)
+              new_grid heading_list)
   in
 
-  aux grid { x = 0; y = 0 } Right
+  aux grid start_coord start_heading
 
 let print_grid grid w h =
   let rec aux x y =
@@ -111,9 +108,27 @@ let print_grid grid w h =
 
 let execute () =
   let t = Sys.time () in
-  let lit_grid = light_beam grid in
-  (* print_grid lit_grid 10 10; *)
-  let result = Grid.fold(fun _ v acc -> if List.length v.headings > 0 then acc + 1 else acc) lit_grid 0 in
+  let lit_grid = light_beam grid { x = 0; y = 0 } Right in
+  let result = Grid.fold (fun _ v acc -> if List.length v.headings > 0 then acc + 1 else acc) lit_grid 0 in
   Printf.printf "\nExecution time: %fs\n" (Sys.time () -. t);
   result
 
+let execute' () =
+  let all_starts heading =
+    let rec aux i heading max =
+      let aux' heading x y =
+        let lit_grid = light_beam grid { x; y } heading in
+        let result = Grid.fold (fun _ v acc -> if List.length v.headings > 0 then acc + 1 else acc) lit_grid 0 in
+        aux (i + 1) heading (Int.max max result)
+      in
+      if i >= 110 then max
+      else
+        match heading with
+        | Right -> aux' heading 0 i
+        | Left -> aux' heading 109 i
+        | Down -> aux' heading i 0
+        | Up -> aux' heading i 109
+    in
+    aux 0 heading 0
+  in
+  List.fold_left (fun acc h -> Int.max acc (all_starts h)) 0 [ Right; Left; Down; Up ]
