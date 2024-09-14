@@ -6,12 +6,12 @@
 
 (map_workspace_root false)
 
-(source
- (github username/reponame))
+;(source
+; (github username/reponame))
 
-(authors "Author Name")
+(authors "Samir Hadi")
 
-(maintainers "Maintainer Name")
+(maintainers "Samir Hadi")
 
 (license LICENSE)
 
@@ -19,7 +19,7 @@
 
 (package
  (name hello)
- (synopsis "A short synopsis")
+ (synopsis "advent of code")
  (description "A longer description")
  (depends ocaml dune)
  (tags
