@@ -43,7 +43,7 @@ let coord_of_heading coord heading =
 
 let last_heading path =
   let rec aux p acc =
-    if List.length acc >= 3 then acc
+    if List.length acc >= 3 then List.rev acc
     else
       match p with
       | a :: b :: rest ->
@@ -56,7 +56,7 @@ let last_heading path =
             | _ -> failwith "Invalid path direction"
           in
           aux (b :: rest) (heading :: acc)
-      | _ -> acc
+      | _ -> List.rev acc
   in
   aux path []
 
@@ -146,25 +146,38 @@ let update event model =
       let new_model = pathfind_step grid model in
       (new_model, Command.Noop)
   | _ -> (model, Command.Noop)
-  
-let selected_node fmt =
-  Spices.(
-    default 
-    |> bold true
-    |> fg (color "#f5f5dc")
-    |> build)
-    fmt
-let grid_with_border fmt =
-  Spices.(
-    default |> border Border.thick 
-    |> fg (color "#d0d1cc")
-    |> build)
-    fmt
-let view model =
-  let grid_str = grid_with_border "23%s\n345" (selected_node "3") in
-  Format.sprintf "%s Node: (%d,%d) %s, weight: %d, path size: %d\n" grid_str model.node_info.node.coord.x model.node_info.node.coord.y
-    model.node_info.node.dimension model.node_info.weight (List.length model.node_info.path)
 
-let execute_interactive () = 
-  Minttea.app ~init ~update ~view () |> Minttea.start ~initial_model
-let execute () = 0
+let selected_node fmt = Spices.(default |> bold true |> fg (color "#ffec8b") |> build) fmt
+let normal_node fmt = Spices.(default |> fg (color "#dfd2c4") |> build) fmt
+let grid_with_border fmt = Spices.(default |> border Border.thick |> build) fmt
+
+let view model =
+  let w, h = (grid_size.x, grid_size.y) in
+  let rec grid_string x y acc =
+    if x >= w then grid_string 0 (y + 1) (acc ^ "\n")
+    else if y >= h then acc
+    else
+      let cell = { x; y } in
+      let cell_value = Grid.find_opt cell grid in
+      match cell_value with
+      | None -> failwith "all cells should exist"
+      | Some v ->
+          if cell = model.node_info.node.coord then grid_string (x + 1) y (acc ^ selected_node "%d" v)
+          else grid_string (x + 1) y (acc ^ normal_node "%d" v)
+  in
+  let grid_s = grid_string 0 0 "" in
+
+  let path_str = List.fold_right (fun x acc -> acc ^ Printf.sprintf "(%d,%d) " x.x x.y) model.node_info.path "" in
+  let grid_str = grid_with_border "%s" grid_s in
+  Format.sprintf "%s\nNode\t\tweight\t\tpath\n(%d,%d)%s\t\t%d\t\t%s" grid_str model.node_info.node.coord.x
+    model.node_info.node.coord.y model.node_info.node.dimension model.node_info.weight path_str
+
+let execute_interactive () = Minttea.app ~init ~update ~view () |> Minttea.start ~initial_model
+
+let execute () =
+  let rec aux model =
+    let new_model = pathfind_step grid model in
+    aux new_model
+  in
+  let _ = aux initial_model in
+  0
