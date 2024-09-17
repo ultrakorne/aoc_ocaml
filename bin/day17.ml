@@ -101,16 +101,28 @@ let rec get_next_node prio_list visited =
   | [] -> failwith "cannot find any more nodes in prio list that are not visited"
   | hd :: rest -> if List.exists (fun x -> x = hd.node) visited then get_next_node rest visited else hd
 
-type model = { node_info : node_info; visited : node list; prio_list : node_info list }
+type model = {
+    node_info : node_info
+  ; visited : node list
+  ; prio_list : node_info list
+  ; step : int
+  ; solutions : (node_info * int) list
+}
 
 let initial_model =
   {
-    node_info = { node = { coord = { x = 0; y = 0 }; dimension = "*" }; weight = 0; path = [] };
-    visited = [];
-    prio_list = [];
+    node_info = { node = { coord = { x = 0; y = 0 }; dimension = "*" }; weight = 0; path = [] }
+  ; visited = []
+  ; prio_list = []
+  ; step = 0
+  ; solutions = []
   }
 
 let init _model = Command.Noop
+let grid_list, grid_size = parse_input day17_inputs
+let grid = Grid.of_list grid_list
+let goal = { x = grid_size.x - 1; y = grid_size.y - 1 }
+let ways_to_reach_goal = Int.min goal.x 3 + Int.min goal.y 3
 
 let pathfind_step grid model =
   let node_info = model.node_info in
@@ -134,17 +146,20 @@ let pathfind_step grid model =
   let new_prio_list = update_prio_list prio_list connected_nodes_weighted new_path in
   let new_prio_list = List.sort (fun a b -> compare a.weight b.weight) new_prio_list in
   let next_node_info = get_next_node new_prio_list visited in
-  { node_info = next_node_info; visited; prio_list = new_prio_list }
-
-let grid_list, grid_size = parse_input day17_inputs
-let grid = Grid.of_list grid_list
+  let solutions =
+    if next_node_info.node.coord = goal then (next_node_info, model.step + 1) :: model.solutions else model.solutions
+  in
+  { node_info = next_node_info; visited; prio_list = new_prio_list; step = model.step + 1; solutions }
 
 let update event model =
   match event with
   | Event.KeyDown ((Key "q" | Escape), _modifier) -> (model, Command.Quit)
   | Event.KeyDown ((Enter | Space), _modifier) ->
-      let new_model = pathfind_step grid model in
-      (new_model, Command.Noop)
+      let all_solutions_found = List.length model.solutions = ways_to_reach_goal in
+      if all_solutions_found then (model, Command.Noop)
+      else
+        let new_model = pathfind_step grid model in
+        (new_model, Command.Noop)
   | _ -> (model, Command.Noop)
 
 let selected_node fmt = Spices.(default |> bold true |> fg (color "#ffec8b") |> build) fmt
@@ -167,10 +182,28 @@ let view model =
   in
   let grid_s = grid_string 0 0 "" in
 
+  let solutions_str =
+    List.fold_right
+      (fun t acc ->
+        let x = fst t in
+        let v = snd t in
+        let path_str = List.fold_right (fun x acc -> acc ^ Printf.sprintf "(%d,%d) " x.x x.y) x.path "" in
+        acc
+        ^ Printf.sprintf "(%d,%d)%-10s %10d %s steps: %d\n" x.node.coord.x x.node.coord.y x.node.dimension x.weight
+            path_str v)
+      model.solutions ""
+  in
+
   let path_str = List.fold_right (fun x acc -> acc ^ Printf.sprintf "(%d,%d) " x.x x.y) model.node_info.path "" in
   let grid_str = grid_with_border "%s" grid_s in
-  Format.sprintf "%s\nNode\t\tweight\t\tpath\n(%d,%d)%s\t\t%d\t\t%s" grid_str model.node_info.node.coord.x
-    model.node_info.node.coord.y model.node_info.node.dimension model.node_info.weight path_str
+  let all_solutions_found = List.length model.solutions = ways_to_reach_goal in
+  let all_solutions_str = if all_solutions_found then Printf.sprintf "All solutions found\n" else "" in
+
+  Format.sprintf
+    ("%s\n" ^^ "Goal is (%d, %d) with %d ways to reach\n\n" ^^ "Step: %d\n" 
+   ^^ "Node: (%d, %d)%-10s Weight: %-10d Path: %s\n\n" ^^ "Solutions🏁\n%s" ^^ "%s")
+    grid_str goal.x goal.y ways_to_reach_goal model.step model.node_info.node.coord.x model.node_info.node.coord.y
+    model.node_info.node.dimension model.node_info.weight path_str solutions_str all_solutions_str
 
 let execute_interactive () = Minttea.app ~init ~update ~view () |> Minttea.start ~initial_model
 
