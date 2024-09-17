@@ -1,6 +1,6 @@
 open Minttea
 
-let day17_inputs = Utils.read_lines "data/advent_17_data_test.txt"
+let day17_inputs = Utils.read_lines "data/advent_17_data.txt"
 
 type coord = { x : int; y : int }
 type node = { coord : coord; dimension : string }
@@ -118,11 +118,15 @@ let initial_model =
   ; solutions = []
   }
 
-let init _model = Command.Noop
+(* let init _model = Command.Noop *)
+let ref = Riot.Ref.make ()
+let timer_tick = 0.001
+let init _ = Command.Set_timer (ref, timer_tick)
 let grid_list, grid_size = parse_input day17_inputs
 let grid = Grid.of_list grid_list
 let goal = { x = grid_size.x - 1; y = grid_size.y - 1 }
 let ways_to_reach_goal = Int.min goal.x 3 + Int.min goal.y 3
+let distance_to_goal coord = abs (goal.x - coord.x) + abs (goal.y - coord.y)
 
 let pathfind_step grid model =
   let node_info = model.node_info in
@@ -144,7 +148,11 @@ let pathfind_step grid model =
   let visited = node_info.node :: visited in
 
   let new_prio_list = update_prio_list prio_list connected_nodes_weighted new_path in
-  let new_prio_list = List.sort (fun a b -> compare a.weight b.weight) new_prio_list in
+  let new_prio_list =
+    List.sort
+      (fun a b -> compare (a.weight + distance_to_goal a.node.coord) (b.weight + distance_to_goal b.node.coord))
+      new_prio_list
+  in
   let next_node_info = get_next_node new_prio_list visited in
   let solutions =
     if next_node_info.node.coord = goal then (next_node_info, model.step + 1) :: model.solutions else model.solutions
@@ -160,11 +168,31 @@ let update event model =
       else
         let new_model = pathfind_step grid model in
         (new_model, Command.Noop)
+  | Event.Timer _ref ->
+      let all_solutions_found = List.length model.solutions = ways_to_reach_goal in
+      if all_solutions_found then (model, Command.Noop)
+      else
+        let new_model = pathfind_step grid model in
+        (new_model, Command.Set_timer (ref, timer_tick))
   | _ -> (model, Command.Noop)
 
 let selected_node fmt = Spices.(default |> bold true |> fg (color "#ffec8b") |> build) fmt
-let normal_node fmt = Spices.(default |> fg (color "#dfd2c4") |> build) fmt
+let path_node fmt = Spices.(default |> bold true |> fg (color "#7a5af5") |> build) fmt
+let normal_node fmt = Spices.(default |> fg (color "#8b8b8b") |> build) fmt
 let grid_with_border fmt = Spices.(default |> border Border.thick |> build) fmt
+
+let rec heading_in_path path coord =
+  let heading_between a b =
+    match (a.x - b.x, a.y - b.y) with
+    | 1, 0 -> Some Right
+    | -1, 0 -> Some Left
+    | 0, 1 -> Some Down
+    | 0, -1 -> Some Up
+    | _ -> None
+  in
+  match path with
+  | a :: b :: rest -> if a = coord then heading_between a b else heading_in_path (b :: rest) coord
+  | _ -> None
 
 let view model =
   let w, h = (grid_size.x, grid_size.y) in
@@ -176,9 +204,13 @@ let view model =
       let cell_value = Grid.find_opt cell grid in
       match cell_value with
       | None -> failwith "all cells should exist"
-      | Some v ->
-          if cell = model.node_info.node.coord then grid_string (x + 1) y (acc ^ selected_node "%d" v)
-          else grid_string (x + 1) y (acc ^ normal_node "%d" v)
+      | Some v -> (
+          let formatter = if cell = model.node_info.node.coord then selected_node else path_node in
+          let path = model.node_info.node.coord :: model.node_info.path in
+          let dir = heading_in_path path cell in
+          match dir with
+          | Some d -> grid_string (x + 1) y (acc ^ formatter "%s" (string_of_heading d))
+          | None -> grid_string (x + 1) y (acc ^ normal_node "%d" v))
   in
   let grid_s = grid_string 0 0 "" in
 
@@ -200,7 +232,7 @@ let view model =
   let all_solutions_str = if all_solutions_found then Printf.sprintf "All solutions found\n" else "" in
 
   Format.sprintf
-    ("%s\n" ^^ "Goal is (%d, %d) with %d ways to reach\n\n" ^^ "Step: %d\n" 
+    ("%s\n" ^^ "Goal is (%d, %d) with %d ways to reach\n\n" ^^ "Step: %d\n"
    ^^ "Node: (%d, %d)%-10s Weight: %-10d Path: %s\n\n" ^^ "Solutions🏁\n%s" ^^ "%s")
     grid_str goal.x goal.y ways_to_reach_goal model.step model.node_info.node.coord.x model.node_info.node.coord.y
     model.node_info.node.dimension model.node_info.weight path_str solutions_str all_solutions_str
@@ -210,7 +242,12 @@ let execute_interactive () = Minttea.app ~init ~update ~view () |> Minttea.start
 let execute () =
   let rec aux model =
     let new_model = pathfind_step grid model in
-    aux new_model
+    let all_solutions_found = List.length new_model.solutions >= 1 in
+    if all_solutions_found then new_model.solutions else aux new_model
   in
-  let _ = aux initial_model in
-  0
+  let t = Sys.time () in
+  let solutions = aux initial_model in
+  Printf.printf "\nExecution time: %fs\n" (Sys.time () -. t);
+  List.iter (fun t -> let x = fst t in let v = snd t in Printf.printf "(%d,%d) %d found in %d steps\n" x.node.coord.x x.node.coord.y x.weight v) solutions;
+  List.fold_left (fun acc t -> let x = fst t in Int.min acc x.weight ) Int.max_int solutions
+  
