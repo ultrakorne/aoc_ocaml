@@ -96,10 +96,11 @@ let update_prio_list prio_list nodes_weighted path =
       else { node; weight; path } :: acc)
     prio_list nodes_weighted
 
-let rec get_next_node prio_list visited =
+
+let rec extract_next_node prio_list visited =
   match prio_list with
   | [] -> failwith "cannot find any more nodes in prio list that are not visited"
-  | hd :: rest -> if List.exists (fun x -> x = hd.node) visited then get_next_node rest visited else hd
+  | hd :: rest -> if List.mem hd.node visited then extract_next_node rest visited else hd, rest
 
 type model = {
     node_info : node_info
@@ -126,7 +127,32 @@ let grid_list, grid_size = parse_input day17_inputs
 let grid = Grid.of_list grid_list
 let goal = { x = grid_size.x - 1; y = grid_size.y - 1 }
 let ways_to_reach_goal = Int.min goal.x 3 + Int.min goal.y 3
-let distance_to_goal coord = abs (goal.x - coord.x) + abs (goal.y - coord.y)
+
+let euristic node_info = 
+  let distance_to_goal coord = abs (goal.x - coord.x) + abs (goal.y - coord.y) in
+  let distance = distance_to_goal node_info.node.coord in
+  node_info.weight + distance
+
+let update_prio_list' prio_list nodes_weighted path =
+  let insert_prio_list lst node_info =
+    let rec aux lst prev =
+      match lst with
+      | [] -> List.rev (node_info :: prev)
+      | hd :: rest ->
+        if euristic node_info < euristic hd then
+         List.rev (hd :: node_info :: prev ) @ rest
+        else aux rest (hd :: prev )
+    in
+    aux lst []
+  in
+  let rec aux nodes_w prio_list =
+    match nodes_w with
+    | [] -> prio_list
+    | n_w :: rest -> 
+      let new_prio_list = insert_prio_list prio_list {node=(fst n_w); weight=(snd n_w); path} in
+      aux rest new_prio_list
+  in
+  aux nodes_weighted prio_list 
 
 let pathfind_step grid model =
   let node_info = model.node_info in
@@ -150,10 +176,12 @@ let pathfind_step grid model =
   let new_prio_list = update_prio_list prio_list connected_nodes_weighted new_path in
   let new_prio_list =
     List.sort
-      (fun a b -> compare (a.weight + distance_to_goal a.node.coord) (b.weight + distance_to_goal b.node.coord))
+      (fun a b -> compare (euristic a) (euristic b))
       new_prio_list
   in
-  let next_node_info = get_next_node new_prio_list visited in
+  let next_node_info, new_prio_list = extract_next_node new_prio_list visited in
+  Printf.printf "priotity list: %d\n%!" (List.length new_prio_list);
+
   let solutions =
     if next_node_info.node.coord = goal then (next_node_info, model.step + 1) :: model.solutions else model.solutions
   in
@@ -242,7 +270,9 @@ let execute_interactive () = Minttea.app ~init ~update ~view () |> Minttea.start
 let execute () =
   let rec aux model =
     let new_model = pathfind_step grid model in
-    let all_solutions_found = List.length new_model.solutions >= 1 in
+    let all_solutions_found = List.length new_model.solutions >= ways_to_reach_goal in
+    let to_print = new_model.step mod 1000 = 0 in
+    if to_print then Printf.printf "Step: %d\n%!" new_model.step;
     if all_solutions_found then new_model.solutions else aux new_model
   in
   let t = Sys.time () in
