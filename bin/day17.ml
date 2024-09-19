@@ -7,7 +7,7 @@ type node = { coord : coord; dimension : string }
 type node_info = { node : node; weight : int; path : coord list }
 type heading = Right | Down | Left | Up
 
-let string_of_heading = function Right -> ">" | Down -> "v" | Left -> "<" | Up -> "^"
+let char_of_heading = function Right -> '>' | Down -> 'v' | Left -> '<' | Up -> '^'
 
 module Grid = Map.Make (struct
   type t = coord
@@ -47,58 +47,55 @@ let coord_of_heading coord heading =
   | Down -> { coord with y = coord.y + 1 }
   | Up -> { coord with y = coord.y - 1 }
 
-let last_n_headings n path =
+let last_n_headings path =
   let rec aux p acc =
-    if List.length acc >= n then List.rev acc
-    else
-      match p with
-      | a :: b :: rest ->
-          let heading =
-            match (a.x - b.x, a.y - b.y) with
-            | 1, 0 -> Right
-            | -1, 0 -> Left
-            | 0, 1 -> Down
-            | 0, -1 -> Up
-            | _ -> failwith "Invalid path direction"
-          in
-          aux (b :: rest) (heading :: acc)
-      | _ -> List.rev acc
+    match p with
+    | a :: b :: rest -> (
+        let heading =
+          match (a.x - b.x, a.y - b.y) with
+          | 1, 0 -> Right
+          | -1, 0 -> Left
+          | 0, 1 -> Down
+          | 0, -1 -> Up
+          | _ -> failwith "Invalid path direction"
+        in
+        match acc with
+        | None, 0 -> aux (b :: rest) (Some heading, 1)
+        | Some h, n when h = heading -> aux (b :: rest) (Some h, n + 1)
+        | _ -> acc)
+    | _ -> acc
   in
-  aux path []
+  aux path (None, 0)
+
+let add_heading heading headings =
+  match headings with
+  | None, _ -> (Some heading, 1)
+  | Some h, n -> if h = heading then (Some h, n + 1) else (Some heading, 1)
+
+let no_backward a =
+  match a with
+  | Right -> [ Right; Down; Up ]
+  | Down -> [ Down; Right; Left ]
+  | Left -> [ Left; Down; Up ]
+  | Up -> [ Up; Right; Left ]
 
 let next_valid_headings headings =
-  let no_backward a =
-    match a with
-    | Right -> [ Right; Down; Up ]
-    | Down -> [ Down; Right; Left ]
-    | Left -> [ Left; Down; Up ]
-    | Up -> [ Up; Right; Left ]
-  in
   match headings with
-  | [] -> [ Right; Down; Left; Up ]
-  | a :: b :: c :: _ -> if a = b && b = c then no_backward a |> List.filter (fun x -> x <> a) else no_backward a
-  | a :: _ -> no_backward a
+  | None, _ -> [ Right; Down; Left; Up ]
+  | Some h, n -> if n >= 3 then no_backward h |> List.filter (fun x -> x <> h) else no_backward h
+
+let next_valid_headings' headings =
+  match headings with
+  | None, _ -> [ Right; Down; Left; Up ]
+  | Some h, n -> if n < 4 then [h]
+  else if n >= 10 then no_backward h |> List.filter (fun x -> x <> h) else no_backward h
 
 let node_of_coord coord last_headings =
-  if List.length last_headings = 0 then { coord; dimension = "*" }
-  else
-    let rec aux headings acc hd_headings =
-      match headings with
-      | [] -> acc
-      | h :: rest -> if h <> hd_headings then acc else aux rest (string_of_heading h ^ acc) hd_headings
-    in
-    let dimension_str = aux last_headings "" (List.hd last_headings) in
-    { coord; dimension = dimension_str }
-
-let update_prio_list prio_list nodes_weighted path =
-  List.fold_left
-    (fun acc x ->
-      let node = fst x in
-      let weight = snd x in
-      if List.exists (fun y -> y.node = node && y.weight > weight) prio_list then
-        List.map (fun y -> if y.node = node then { node; weight; path } else y) prio_list
-      else { node; weight; path } :: acc)
-    prio_list nodes_weighted
+  match last_headings with
+  | None, _ -> { coord; dimension = "*" }
+  | Some h, n ->
+      let str = char_of_heading h in
+      { coord; dimension = String.init n (fun _ -> str) }
 
 let rec extract_next_node prio_list visited =
   match prio_list with
@@ -123,9 +120,11 @@ let initial_model =
   }
 
 (* let init _model = Command.Noop *)
-let ref = Riot.Ref.make ()
+(* let ref = Riot.Ref.make ()
 let timer_tick = 0.01
-let init _ = Command.Set_timer (ref, timer_tick)
+let init _ = Command.Set_timer (ref, timer_tick) *)
+let init _ = Command.Noop
+
 let grid_list, grid_size = parse_input day17_inputs
 let grid = Grid.of_list grid_list
 let goal = { x = grid_size.x - 1; y = grid_size.y - 1 }
@@ -136,7 +135,7 @@ let heuristic node_info =
   (* let distance = distance_to_goal node_info.node.coord in *)
   node_info.weight
 
-let update_prio_list' prio_list nodes_weighted path =
+let update_prio_list prio_list nodes_weighted path =
   let insert_prio_list lst node_info =
     let rec aux lst prev =
       match lst with
@@ -162,20 +161,20 @@ let pathfind_step grid model =
 
   let coord = node_info.node.coord in
   let new_path = coord :: node_info.path in
-  let last_headings = last_n_headings 10 new_path in
-  let next_headings = next_valid_headings last_headings in
+  let last_headings = last_n_headings new_path in
+  let next_headings = next_valid_headings' last_headings in
   let connected_nodes_weighted =
     List.filter_map
       (fun x ->
         let c = coord_of_heading coord x in
-        let n = node_of_coord c (x :: last_headings) in
+        let n = node_of_coord c (add_heading x last_headings) in
         Grid.find_opt c grid |> Option.map (fun y -> (n, y + node_info.weight)))
       next_headings
   in
   let visited = NodeMap.add node_info.node true visited in
 
   let connected_nodes_weighted = List.filter (fun x -> not (NodeMap.mem (fst x) visited)) connected_nodes_weighted in
-  let new_prio_list = update_prio_list' prio_list connected_nodes_weighted new_path in
+  let new_prio_list = update_prio_list prio_list connected_nodes_weighted new_path in
   let next_node_info, new_prio_list = extract_next_node new_prio_list visited in
 
   let solutions =
@@ -192,12 +191,12 @@ let update event model =
       else
         let new_model = pathfind_step grid model in
         (new_model, Command.Noop)
-  | Event.Timer _ref ->
+  (* | Event.Timer _ref ->
       let all_solutions_found = List.length model.solutions = ways_to_reach_goal in
       if all_solutions_found then (model, Command.Noop)
       else
         let new_model = pathfind_step grid model in
-        (new_model, Command.Set_timer (ref, timer_tick))
+        (new_model, Command.Set_timer (ref, timer_tick)) *)
   | _ -> (model, Command.Noop)
 
 let selected_node fmt = Spices.(default |> bold true |> fg (color "#ffec8b") |> build) fmt
@@ -233,7 +232,7 @@ let view model =
           let path = model.node_info.node.coord :: model.node_info.path in
           let dir = heading_in_path path cell in
           match dir with
-          | Some d -> grid_string (x + 1) y (acc ^ formatter "%s" (string_of_heading d))
+          | Some d -> grid_string (x + 1) y (acc ^ formatter "%c" (char_of_heading d))
           | None -> grid_string (x + 1) y (acc ^ normal_node "%d" v))
   in
   let grid_s = grid_string 0 0 "" in
@@ -279,7 +278,7 @@ let execute () =
     (fun t ->
       let x = fst t in
       let v = snd t in
-      Printf.printf "(%d,%d) %d found in %d steps\n" x.node.coord.x x.node.coord.y x.weight v)
+      Printf.printf "(%d,%d)%s -> %d found in %d steps\n" x.node.coord.x x.node.coord.y x.node.dimension x.weight v)
     solutions;
   List.fold_left
     (fun acc t ->

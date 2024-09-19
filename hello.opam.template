@@ -1,5 +1,4 @@
 pin-depends: [
   ["minttea.dev" "git+https://github.com/leostera/minttea.git#b084ec7401c52167fae5087577133e52e3874899"]
   ["spices.dev" "git+https://github.com/leostera/minttea.git#b084ec7401c52167fae5087577133e52e3874899"]
-  ["tty.dev" "git+https://github.com/ocaml-tui/tty.git#0.0.2"]
 ]
