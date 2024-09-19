@@ -1,6 +1,6 @@
 open Minttea
 
-let day17_inputs = Utils.read_lines "data/advent_17_data.txt"
+let day17_inputs = Utils.read_lines "data/advent_17_data_test.txt"
 
 type coord = { x : int; y : int }
 type node = { coord : coord; dimension : string }
@@ -11,6 +11,12 @@ let string_of_heading = function Right -> ">" | Down -> "v" | Left -> "<" | Up -
 
 module Grid = Map.Make (struct
   type t = coord
+
+  let compare = compare
+end)
+
+module NodeMap = Map.Make (struct
+  type t = node
 
   let compare = compare
 end)
@@ -96,15 +102,14 @@ let update_prio_list prio_list nodes_weighted path =
       else { node; weight; path } :: acc)
     prio_list nodes_weighted
 
-
 let rec extract_next_node prio_list visited =
   match prio_list with
   | [] -> failwith "cannot find any more nodes in prio list that are not visited"
-  | hd :: rest -> if List.mem hd.node visited then extract_next_node rest visited else hd, rest
+  | hd :: rest -> if NodeMap.mem hd.node visited then extract_next_node rest visited else (hd, rest)
 
 type model = {
     node_info : node_info
-  ; visited : node list
+  ; visited : bool NodeMap.t
   ; prio_list : node_info list
   ; step : int
   ; solutions : (node_info * int) list
@@ -113,7 +118,7 @@ type model = {
 let initial_model =
   {
     node_info = { node = { coord = { x = 0; y = 0 }; dimension = "*" }; weight = 0; path = [] }
-  ; visited = []
+  ; visited = NodeMap.empty
   ; prio_list = []
   ; step = 0
   ; solutions = []
@@ -121,17 +126,17 @@ let initial_model =
 
 (* let init _model = Command.Noop *)
 let ref = Riot.Ref.make ()
-let timer_tick = 0.001
+let timer_tick = 0.01
 let init _ = Command.Set_timer (ref, timer_tick)
 let grid_list, grid_size = parse_input day17_inputs
 let grid = Grid.of_list grid_list
 let goal = { x = grid_size.x - 1; y = grid_size.y - 1 }
 let ways_to_reach_goal = Int.min goal.x 3 + Int.min goal.y 3
 
-let euristic node_info = 
-  let distance_to_goal coord = abs (goal.x - coord.x) + abs (goal.y - coord.y) in
-  let distance = distance_to_goal node_info.node.coord in
-  node_info.weight + distance
+let heuristic node_info =
+  (* let distance_to_goal coord = abs (goal.x - coord.x) + abs (goal.y - coord.y) in *)
+  (* let distance = distance_to_goal node_info.node.coord in *)
+  node_info.weight
 
 let update_prio_list' prio_list nodes_weighted path =
   let insert_prio_list lst node_info =
@@ -139,20 +144,18 @@ let update_prio_list' prio_list nodes_weighted path =
       match lst with
       | [] -> List.rev (node_info :: prev)
       | hd :: rest ->
-        if euristic node_info < euristic hd then
-         List.rev (hd :: node_info :: prev ) @ rest
-        else aux rest (hd :: prev )
+          if heuristic node_info < heuristic hd then List.rev (hd :: node_info :: prev) @ rest else aux rest (hd :: prev)
     in
     aux lst []
   in
   let rec aux nodes_w prio_list =
     match nodes_w with
     | [] -> prio_list
-    | n_w :: rest -> 
-      let new_prio_list = insert_prio_list prio_list {node=(fst n_w); weight=(snd n_w); path} in
-      aux rest new_prio_list
+    | n_w :: rest ->
+        let new_prio_list = insert_prio_list prio_list { node = fst n_w; weight = snd n_w; path } in
+        aux rest new_prio_list
   in
-  aux nodes_weighted prio_list 
+  aux nodes_weighted prio_list
 
 let pathfind_step grid model =
   let node_info = model.node_info in
@@ -171,17 +174,18 @@ let pathfind_step grid model =
         Grid.find_opt c grid |> Option.map (fun y -> (n, y + node_info.weight)))
       next_headings
   in
-  let visited = node_info.node :: visited in
+  let visited = NodeMap.add node_info.node true visited in
 
-  let new_prio_list = update_prio_list prio_list connected_nodes_weighted new_path in
-  let new_prio_list =
-    List.sort
-      (fun a b -> compare (euristic a) (euristic b))
-      new_prio_list
-  in
+  let connected_nodes_weighted = List.filter (fun x -> not (NodeMap.mem (fst x) visited)) connected_nodes_weighted in
+  let new_prio_list = update_prio_list' prio_list connected_nodes_weighted new_path in
+  (* let new_prio_list =
+       List.sort
+         (fun a b -> compare (euristic a) (euristic b))
+         new_prio_list
+     in *)
   let next_node_info, new_prio_list = extract_next_node new_prio_list visited in
-  Printf.printf "priotity list: %d\n%!" (List.length new_prio_list);
 
+  (* Printf.printf "priotity list: %d\n%!" (List.length new_prio_list); *)
   let solutions =
     if next_node_info.node.coord = goal then (next_node_info, model.step + 1) :: model.solutions else model.solutions
   in
@@ -271,13 +275,23 @@ let execute () =
   let rec aux model =
     let new_model = pathfind_step grid model in
     let all_solutions_found = List.length new_model.solutions >= ways_to_reach_goal in
-    let to_print = new_model.step mod 1000 = 0 in
-    if to_print then Printf.printf "Step: %d\n%!" new_model.step;
+    let to_print = new_model.step mod 10000 = 0 in
+    if to_print then
+      Printf.printf "Step: %d\n priority list size: %d %!" new_model.step
+        (List.length new_model.prio_list);
     if all_solutions_found then new_model.solutions else aux new_model
   in
   let t = Sys.time () in
   let solutions = aux initial_model in
   Printf.printf "\nExecution time: %fs\n" (Sys.time () -. t);
-  List.iter (fun t -> let x = fst t in let v = snd t in Printf.printf "(%d,%d) %d found in %d steps\n" x.node.coord.x x.node.coord.y x.weight v) solutions;
-  List.fold_left (fun acc t -> let x = fst t in Int.min acc x.weight ) Int.max_int solutions
-  
+  List.iter
+    (fun t ->
+      let x = fst t in
+      let v = snd t in
+      Printf.printf "(%d,%d) %d found in %d steps\n" x.node.coord.x x.node.coord.y x.weight v)
+    solutions;
+  List.fold_left
+    (fun acc t ->
+      let x = fst t in
+      Int.min acc x.weight)
+    Int.max_int solutions
