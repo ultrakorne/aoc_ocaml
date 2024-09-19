@@ -1,6 +1,6 @@
 open Minttea
 
-let day17_inputs = Utils.read_lines "data/advent_17_data_test.txt"
+let day17_inputs = Utils.read_lines "data/advent_17_data.txt"
 
 type coord = { x : int; y : int }
 type node = { coord : coord; dimension : string }
@@ -47,9 +47,9 @@ let coord_of_heading coord heading =
   | Down -> { coord with y = coord.y + 1 }
   | Up -> { coord with y = coord.y - 1 }
 
-let last_heading path =
+let last_n_headings n path =
   let rec aux p acc =
-    if List.length acc >= 3 then List.rev acc
+    if List.length acc >= n then List.rev acc
     else
       match p with
       | a :: b :: rest ->
@@ -83,11 +83,9 @@ let node_of_coord coord last_headings =
   if List.length last_headings = 0 then { coord; dimension = "*" }
   else
     let rec aux headings acc hd_headings =
-      if String.length acc >= 3 then acc
-      else
-        match headings with
-        | [] -> acc
-        | h :: rest -> if h <> hd_headings then acc else aux rest (string_of_heading h ^ acc) hd_headings
+      match headings with
+      | [] -> acc
+      | h :: rest -> if h <> hd_headings then acc else aux rest (string_of_heading h ^ acc) hd_headings
     in
     let dimension_str = aux last_headings "" (List.hd last_headings) in
     { coord; dimension = dimension_str }
@@ -164,7 +162,7 @@ let pathfind_step grid model =
 
   let coord = node_info.node.coord in
   let new_path = coord :: node_info.path in
-  let last_headings = last_heading new_path in
+  let last_headings = last_n_headings 10 new_path in
   let next_headings = next_valid_headings last_headings in
   let connected_nodes_weighted =
     List.filter_map
@@ -178,14 +176,8 @@ let pathfind_step grid model =
 
   let connected_nodes_weighted = List.filter (fun x -> not (NodeMap.mem (fst x) visited)) connected_nodes_weighted in
   let new_prio_list = update_prio_list' prio_list connected_nodes_weighted new_path in
-  (* let new_prio_list =
-       List.sort
-         (fun a b -> compare (euristic a) (euristic b))
-         new_prio_list
-     in *)
   let next_node_info, new_prio_list = extract_next_node new_prio_list visited in
 
-  (* Printf.printf "priotity list: %d\n%!" (List.length new_prio_list); *)
   let solutions =
     if next_node_info.node.coord = goal then (next_node_info, model.step + 1) :: model.solutions else model.solutions
   in
@@ -277,8 +269,7 @@ let execute () =
     let all_solutions_found = List.length new_model.solutions >= ways_to_reach_goal in
     let to_print = new_model.step mod 10000 = 0 in
     if to_print then
-      Printf.printf "Step: %d\n priority list size: %d %!" new_model.step
-        (List.length new_model.prio_list);
+      Printf.printf "Step: %d\n priority list size: %d %!" new_model.step (List.length new_model.prio_list);
     if all_solutions_found then new_model.solutions else aux new_model
   in
   let t = Sys.time () in
